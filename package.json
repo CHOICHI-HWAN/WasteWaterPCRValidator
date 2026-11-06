@@ -1,0 +1,26 @@
+{
+  "name": "wastewater-pcr-validator",
+  "version": "0.23.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/calc.test.js && node test/num.test.js",
+    "serve": "firebase serve --only hosting",
+    "deploy": "node tools/sync-docs.js && node tools/release.mjs && firebase deploy --only hosting",
+    "sync-docs": "node tools/sync-docs.js",
+    "build:exe": "node tools/build-exe.mjs",
+    "build:exe:linux": "node tools/build-exe.mjs --linux",
+    "release": "node tools/release.mjs"
+  },
+  "license": "GPL-3.0-only",
+  "author": "치치박사&박박사",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator.git"
+  },
+  "homepage": "https://wwpcr.web.app",
+  "bugs": {
+    "url": "https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/issues"
+  },
+  "description": "하수 병원체 PCR 숙련도 평가 — BCoV 표준곡선·증폭효율·회수율 검증기 (WasteWater PCR Validator)"
+}

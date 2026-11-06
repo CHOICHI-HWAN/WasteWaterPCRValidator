@@ -1,0 +1,14 @@
+node_modules/
+.firebase/
+*.log
+*.hwpx
+!public/template.hwpx
+*.xlsx
+reports/
+.~lock.*
+~$*
+dist/
+build/
+desktop/go/assets.bin
+public/downloads/
+public/releases.json

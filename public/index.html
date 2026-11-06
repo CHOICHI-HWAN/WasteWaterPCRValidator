@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="vendor/jspreadsheet/jsuites.css">
+<link rel="stylesheet" href="vendor/jspreadsheet/jspreadsheet.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e8fa0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2048%2048%27%3E%3Cdefs%3E%3ClinearGradient%20id=%27g%27%20x1=%270%27%20y1=%270%27%20x2=%271%27%20y2=%271%27%3E%3Cstop%20offset=%270%27%20stop-color=%27%230e8fa0%27/%3E%3Cstop%20offset=%271%27%20stop-color=%27%232f80ed%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width=%2748%27%20height=%2748%27%20rx=%2711%27%20fill=%27url%28%23g%29%27/%3E%3Cpath%20d=%27M24%209C24%209%2013%2021%2013%2029a11%2011%200%200022%200C35%2021%2024%209%2024%209z%27%20fill=%27%23fff%27/%3E%3C/svg%3E">
+<title>하수 PCR 검증기</title>
+<style>
+  /* ===== 디자인 토큰: 맑은 물 ===== */
+  :root {
+    --bg:#f1f8fa; --card:#ffffff; --fg:#14313b; --mut:#6a8590; --line:#dfeaef;
+    --acc:#0e8fa0; --acc2:#2f80ed; --accsoft:#e2f4f7;
+    --inbg:#eaf8f0; --inbd:#a9ddc2;
+    --ok:#12804a; --okbg:#e3f6ec; --bad:#c0362c; --badbg:#fdeceb; --warnbg:#fff4d6; --warn:#7a5a00;
+    --shadow:0 8px 28px rgba(18,72,92,.08); --shadow-s:0 2px 8px rgba(18,72,92,.07);
+    --r:18px;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#0d171b; --card:#15232a; --fg:#e3f0f4; --mut:#8fa9b3; --line:#243842;
+    --acc:#3cc4d6; --acc2:#6ea8ff; --accsoft:#173039;
+    --inbg:#173528; --inbd:#2b6a49;
+    --ok:#5fd18b; --okbg:#173325; --bad:#ff8f86; --badbg:#3a1c1a; --warnbg:#3a3114; --warn:#ffd666;
+    --shadow:0 8px 28px rgba(0,0,0,.35); --shadow-s:0 2px 8px rgba(0,0,0,.3);
+  } }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 "Pretendard","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  main { max-width:1360px; margin:0 auto; padding:0 16px 56px; }
+  h1,h2,h3 { margin:0; letter-spacing:-.01em; }
+
+  /* ===== 히어로 ===== */
+  .hero { margin:0 -16px 18px; padding:30px 16px 0; background:linear-gradient(135deg,#0e8fa0 0%,#2f80ed 100%); color:#fff; position:relative; overflow:hidden; }
+  @media (min-width:1392px) { .hero { margin:0 calc(50% - 50vw); padding-left:calc(50vw - 680px + 16px); padding-right:calc(50vw - 680px + 16px); } }
+  .hero-in { max-width:1328px; display:flex; gap:18px; align-items:center; padding-bottom:40px; position:relative; z-index:1; }
+  .hero .ico { flex:0 0 64px; width:64px; height:64px; border-radius:20px; background:rgba(255,255,255,.18); display:grid; place-items:center; box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); }
+  .hero h1 { font-size:28px; font-weight:800; }
+  .hero p { margin:4px 0 12px; opacity:.92; font-size:15px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:99px; background:rgba(255,255,255,.18); font-size:12.5px; font-weight:600; backdrop-filter:blur(4px); box-shadow:inset 0 0 0 1px rgba(255,255,255,.25); }
+  .chip.beta { background:#ffd166; color:#4a3300; box-shadow:none; }
+  .chip.sw { cursor:pointer; } .chip input { width:auto; min-width:0; accent-color:#fff; }
+  .wave { position:absolute; left:0; right:0; bottom:-1px; width:100%; height:34px; display:block; }
+  .wave path { fill:var(--bg); }
+  .betabox { display:flex; gap:10px; align-items:flex-start; background:var(--warnbg); color:var(--warn); border-radius:14px; padding:10px 14px; margin:0 0 14px; font-size:13.5px; }
+
+  /* ===== 카드 ===== */
+  .card { background:var(--card); border-radius:var(--r); padding:20px 22px; margin-bottom:18px; box-shadow:var(--shadow); border:1px solid var(--line); }
+  .chead { display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .step { flex:0 0 32px; width:32px; height:32px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:14px; color:#fff; background:linear-gradient(135deg,var(--acc),var(--acc2)); box-shadow:0 3px 8px rgba(14,143,160,.35); }
+  .chead h2 { font-size:18px; font-weight:800; }
+  .chead .hint { color:var(--mut); font-size:13px; flex-basis:100%; margin:-4px 0 0 44px; }
+  .card h3 { font-size:15px; }
+  .note { color:var(--mut); font-size:13px; margin:8px 0 0; }
+  .fx { display:block; color:var(--mut); font-size:11px; font-weight:400; line-height:1.35; margin-top:2px; opacity:.9; }
+  body.nofx .fx { display:none; }
+  .sci { display:block; text-align:right; color:var(--mut); font-size:11px; min-height:14px; font-weight:400; }
+
+  /* ===== 폼 ===== */
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+  .row label { display:flex; flex-direction:column; gap:5px; font-size:13px; font-weight:600; color:var(--mut); flex:1 1 150px; }
+  input, select { width:100%; min-width:70px; padding:9px 12px; border:1.5px solid var(--inbd); border-radius:12px; background:var(--inbg); color:var(--fg); font:inherit; text-align:right; transition:border-color .15s, box-shadow .15s, background .15s; }
+  input.txt { text-align:left; }
+  select { background:var(--card); border-color:var(--line); text-align:left; cursor:pointer; }
+  input:focus, select:focus { outline:none; border-color:var(--acc); box-shadow:0 0 0 4px color-mix(in srgb, var(--acc) 22%, transparent); background:var(--card); }
+  input[type=checkbox] { width:auto; min-width:0; }
+  input.need { border-style:dashed; border-color:#e0a100; background:var(--warnbg); }
+  input.bad { border-color:var(--bad); background:var(--badbg); }
+  input.demo { color:var(--mut); font-style:italic; } .demoeg { color:var(--mut); font-style:italic; }
+  .dwrap { display:flex; gap:6px; align-items:stretch; } .dwrap input.txt { flex:1; min-width:0; }
+  .calbtn { position:relative; flex:0 0 44px; display:grid; place-items:center; border:1.5px solid var(--inbd); border-radius:12px; background:var(--inbg); cursor:pointer; font-size:17px; transition:transform .12s; }
+  .calbtn:hover { transform:translateY(-1px); }
+  .calbtn input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; min-width:0; padding:0; }
+  .ferr { color:var(--bad); font-size:12px; } .ferr:empty { display:none; } .ferr.fwarn { color:#b07900; }
+  button, a.btn { padding:9px 16px; border-radius:99px; border:1.5px solid var(--line); background:var(--card); color:var(--fg); font:inherit; font-weight:600; font-size:14px; cursor:pointer; text-decoration:none; transition:transform .12s, box-shadow .12s, background .15s; display:inline-flex; align-items:center; gap:6px; }
+  button:hover, a.btn:hover { background:var(--accsoft); transform:translateY(-1px); box-shadow:var(--shadow-s); }
+  button:active { transform:translateY(0); }
+  button:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+  button.primary { background:linear-gradient(135deg,var(--acc),var(--acc2)); color:#fff; border-color:transparent; box-shadow:0 4px 14px rgba(14,143,160,.35); }
+  button.primary:hover { filter:brightness(1.06); background:linear-gradient(135deg,var(--acc),var(--acc2)); }
+  .tag { display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:99px; margin-left:4px; vertical-align:middle; line-height:1.6; }
+  .row label .tag { align-self:flex-start; margin:0 0 2px; }
+  .tag.req { background:#fde8e6; color:#b42318; } .tag.opt { background:#e9eff2; color:#52707c; }
+  @media (prefers-color-scheme: dark) { .tag.req { background:#4a2020; color:#ff9a90; } .tag.opt { background:#22333b; color:#9bb3bd; } }
+  .badge { display:inline-block; padding:2px 11px; border-radius:99px; font-weight:700; font-size:12.5px; }
+  .ok { background:var(--okbg); color:var(--ok); } .bad { background:var(--badbg); color:var(--bad); }
+
+  /* ===== 표 ===== */
+  table { border-collapse:separate; border-spacing:0; width:100%; }
+  th, td { padding:8px 10px; text-align:center; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-weight:700; font-size:12.5px; background:color-mix(in srgb, var(--accsoft) 55%, transparent); }
+  thead th:first-child { border-top-left-radius:12px; } thead th:last-child { border-top-right-radius:12px; }
+  tbody tr:hover td { background:color-mix(in srgb, var(--accsoft) 35%, transparent); }
+  tbody tr:last-child td { border-bottom:0; }
+  td.l { text-align:left; } .num { font-variant-numeric:tabular-nums; }
+  .scroll { overflow-x:auto; border-radius:14px; border:1px solid var(--line); }
+  .scroll table { margin:0; }
+
+  /* ===== 업로드 ===== */
+  .drop { border:2px dashed color-mix(in srgb, var(--acc) 45%, var(--line)); border-radius:16px; padding:18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; background:color-mix(in srgb, var(--accsoft) 50%, transparent); transition:background .15s, border-color .15s; }
+  .drop.over { border-color:var(--acc); background:var(--accsoft); }
+  .gbox { background:var(--inbg); border:1px solid var(--inbd); border-radius:6px; padding:0 6px; }
+
+  /* ===== 안내/상태 ===== */
+  .guide { padding:16px 22px; } .guide summary { cursor:pointer; font-weight:800; font-size:16px; list-style:none; display:flex; gap:8px; align-items:center; } .guide summary::-webkit-details-marker { display:none; }
+  .guide summary::after { content:'▾'; margin-left:auto; color:var(--mut); transition:transform .2s; } .guide[open] summary::after { transform:rotate(180deg); }
+  .steps { list-style:none; margin:14px 0 12px; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; counter-reset:s; }
+  .steps li { counter-increment:s; background:var(--accsoft); border-radius:14px; padding:12px 14px 12px 46px; position:relative; font-size:13.5px; }
+  .steps li::before { content:counter(s); position:absolute; left:12px; top:12px; width:24px; height:24px; border-radius:50%; background:var(--acc); color:#fff; display:grid; place-items:center; font-weight:800; font-size:12px; }
+  .legend { margin:0; color:var(--mut); font-size:13px; line-height:2; }
+  .needsample { border:2px dashed #e0a100; padding:0 8px; border-radius:8px; }
+  .reqbox { position:sticky; top:10px; z-index:20; padding:10px 16px; font-size:13.5px; border-radius:99px; backdrop-filter:blur(10px); background:color-mix(in srgb, var(--card) 88%, transparent); }
+  .reqbox br + span.note, .reqbox .note { font-size:12.5px; }
+
+  /* ===== 탭 (간편 입력 / 스프레드시트) ===== */
+  .toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .chk { display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--mut); cursor:pointer; padding:6px 12px; border-radius:99px; border:1.5px solid var(--line); background:var(--card); }
+  .chk:has(input:checked) { border-color:var(--acc); background:var(--accsoft); color:var(--fg); }
+  .seg { display:inline-flex; background:var(--accsoft); border-radius:99px; padding:4px; gap:2px; margin-bottom:12px; }
+  .seg button { border:0; background:transparent; box-shadow:none; padding:7px 16px; font-size:13.5px; color:var(--mut); }
+  .seg button:hover { background:transparent; transform:none; box-shadow:none; color:var(--fg); }
+  .seg button.on { background:var(--card); color:var(--acc); box-shadow:var(--shadow-s); }
+  #ctSheetWrap { color-scheme:light; background:#fff; color:#000; border:1px solid var(--line); border-radius:14px; padding:10px; overflow-x:auto; }
+  #ctSheetWrap .jss_content { max-width:100%; } #ctSheetWrap td { font-size:13px; font-variant-numeric:tabular-nums; }
+  #ct td.conc { white-space:nowrap; }
+
+  /* ===== 결과 타일 ===== */
+  .tiles { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+  .tile { flex:1 1 120px; border-radius:16px; padding:12px 16px; display:flex; flex-direction:column; gap:2px; background:linear-gradient(160deg,var(--accsoft),transparent 85%); border:1px solid var(--line); }
+  .tile span { color:var(--mut); font-size:12px; font-weight:700; } .tile b { font-size:22px; font-variant-numeric:tabular-nums; } .tile small { color:var(--mut); font-size:11.5px; min-height:15px; }
+  .tile.eff { flex:1.7 1 220px; border-width:2px; padding:14px 18px; } .tile.eff b { font-size:32px; line-height:1.15; }
+  .tile.eff.good { border-color:var(--ok); background:linear-gradient(160deg,var(--okbg),transparent 90%); } .tile.eff.good small { color:var(--ok); font-weight:700; }
+  .tile.eff.bad { border-color:var(--bad); background:linear-gradient(160deg,var(--badbg),transparent 90%); } .tile.eff.bad small { color:var(--bad); font-weight:700; }
+  .gauge { position:relative; height:8px; border-radius:99px; background:var(--line); margin:8px 0 2px; }
+  .gauge .zone { position:absolute; top:0; bottom:0; border-radius:99px; background:color-mix(in srgb, var(--ok) 45%, transparent); }
+  .gauge .dot { position:absolute; top:50%; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:var(--card); border:3px solid var(--ok); box-shadow:var(--shadow-s); }
+  .tile.eff.bad .gauge .dot { border-color:var(--bad); }
+  svg#plot { width:100%; height:auto; max-height:320px; margin-top:6px; background:color-mix(in srgb, var(--accsoft) 30%, transparent); border-radius:14px; }
+
+  /* ===== 접기 ===== */
+  details.fold > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:12px; font-weight:800; font-size:18px; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+  details.fold > summary::after { content:'▾'; margin-left:auto; color:var(--mut); } details.fold[open] > summary::after { content:'▴'; }
+  details.fold .body { margin-top:14px; }
+
+  /* ===== 푸터 ===== */
+  .foot { margin-top:30px; text-align:center; color:var(--mut); font-size:12.5px; line-height:2; } .foot a { color:var(--acc); text-decoration:none; font-weight:600; }
+  .betatag { background:#ffd166; color:#4a3300; border-radius:6px; padding:1px 7px; font-weight:800; font-size:11px; }
+  pre.doc { white-space:pre-wrap; word-break:break-word; font:12px/1.55 ui-monospace,Menlo,Consolas,monospace; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; max-height:55vh; overflow:auto; }
+
+  /* ===== 모달 ===== */
+  dialog { border:0; border-radius:22px; background:var(--card); color:var(--fg); padding:22px; width:min(92vw,400px); box-shadow:0 24px 80px rgba(0,0,0,.35); }
+  dialog::backdrop { background:rgba(8,30,38,.55); backdrop-filter:blur(4px); }
+  dialog.wide { width:min(96vw,900px); max-height:92vh; overflow:auto; }
+  dialog h2 { font-size:19px; font-weight:800; }
+
+
+  /* ===== 2열 레이아웃: 본문 + 오른쪽 사이드 패널 (GitHub 저장소 화면처럼) ===== */
+  .layout { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; align-items:start; }
+  @media (min-width:1040px) { .layout { grid-template-columns:minmax(0,1fr) 304px; } }
+  .side { position:static; }
+  @media (min-width:1040px) { .side { position:sticky; top:12px; max-height:calc(100vh - 24px); overflow:auto; scrollbar-width:thin; } }
+  .sidecard { background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); padding:4px 18px; }
+  .sbox { padding:16px 0; border-bottom:1px solid var(--line); } .sbox:last-child { border-bottom:0; }
+  .sbox h3 { font-size:14.5px; font-weight:800; display:flex; align-items:center; gap:8px; margin:0 0 10px; }
+  .count { background:var(--accsoft); color:var(--acc); border-radius:99px; padding:0 8px; font-size:12px; font-weight:800; }
+  .sbox p { margin:0 0 10px; font-size:13.5px; color:var(--fg); }
+  .smeta { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; font-size:13px; }
+  .smeta li { display:flex; gap:9px; align-items:center; color:var(--mut); } .smeta a { color:var(--acc); text-decoration:none; font-weight:600; } .smeta a:hover { text-decoration:underline; }
+  .smeta .ic { width:18px; text-align:center; flex:0 0 18px; }
+  .topics { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .topics span { background:var(--accsoft); color:var(--acc); border-radius:99px; padding:2px 11px; font-size:12px; font-weight:600; }
+  .rel-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rel-head b { font-size:15px; } .latest { border:1px solid var(--ok); color:var(--ok); border-radius:99px; padding:0 9px; font-size:11px; font-weight:800; }
+  .rel-date { color:var(--mut); font-size:12px; margin:2px 0 8px; }
+  .rel-notes { margin:0 0 10px; padding-left:18px; font-size:12.5px; color:var(--mut); } .rel-notes li { margin:2px 0; }
+  .assets { display:flex; flex-direction:column; gap:7px; margin:8px 0; }
+  .asset { display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:13px; text-decoration:none; color:var(--fg); background:var(--bg); transition:transform .12s, background .15s, border-color .15s; }
+  .asset:hover { background:var(--accsoft); border-color:var(--acc); transform:translateY(-1px); }
+  .asset .ai { font-size:20px; flex:0 0 24px; text-align:center; }
+  .asset .an { flex:1; min-width:0; font-size:12.5px; font-weight:700; word-break:break-all; line-height:1.35; } .asset .an small { display:block; font-weight:400; color:var(--mut); font-size:11.5px; margin-top:1px; }
+  .asset .ad { color:var(--acc); font-weight:800; }
+  .sha { display:inline-flex; gap:6px; align-items:center; font-size:11px; color:var(--mut); } .sha code { background:var(--bg); padding:1px 6px; border-radius:6px; }
+  .sha button { padding:1px 9px; font-size:11px; }
+  .older { list-style:none; margin:8px 0 0; padding:0; font-size:12.5px; } .older li { display:flex; justify-content:space-between; padding:3px 0; color:var(--mut); } .older b { color:var(--fg); }
+  .linkbtn { background:none; border:0; padding:0; box-shadow:none; color:var(--acc); font-size:12.5px; font-weight:700; } .linkbtn:hover { background:none; text-decoration:underline; transform:none; box-shadow:none; }
+  .dl-empty { font-size:12.5px; color:var(--mut); background:var(--bg); border-radius:12px; padding:10px 12px; margin:6px 0; }
+  .dlitem { display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:8px 10px; border:1px solid transparent; border-radius:12px; background:none; box-shadow:none; font-weight:600; font-size:13px; }
+  .dlitem:hover { background:var(--accsoft); transform:none; box-shadow:none; border-color:var(--line); }
+  .dlitem .ai { font-size:18px; width:22px; text-align:center; } .dlitem small { display:block; font-weight:400; color:var(--mut); font-size:11.5px; }
+  a.dlitem { text-decoration:none; color:var(--fg); }
+  .avatars { display:flex; gap:8px; align-items:center; } .avatar { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:800; color:#fff; background:linear-gradient(135deg,var(--acc),var(--acc2)); font-size:14px; box-shadow:var(--shadow-s); }
+  .avatar.b { background:linear-gradient(135deg,#f0883e,#e0555c); }
+
+  /* ===== 결과서 미리보기(종이) ===== */
+  .paper .pg { background:#fff; color:#000; padding:28px 30px; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow-s); margin-bottom:14px; font-family:"Noto Serif KR","Batang","Malgun Gothic",serif; font-size:13px; line-height:1.45; }
+  .paper h1 { font-size:17px; text-align:center; margin:0 0 14px; } .paper h2 { font-size:14px; margin:16px 0 6px; }
+  .paper .sec { font-weight:700; margin:12px 0 4px; } .paper .fn { font-size:11px; margin:4px 0 0; }
+  .paper table.form { width:100%; border-collapse:collapse; table-layout:auto; }
+  .paper table.form th, .paper table.form td { border:1px solid #000; padding:4px 6px; text-align:center; font-weight:400; font-size:12px; background:none; border-radius:0; }
+  .paper table.form th { background:#f2f2f2; color:#000; } .paper th.l { text-align:left; }
+  .paper table.form tbody tr:hover td { background:none; }
+  .paper img.curve { width:100%; height:auto; display:block; }
+  .paper .chg { background:#fde8e6; } .paper .chg del { color:#777; font-size:11px; } .paper .chg b { color:#b42318; font-weight:700; }
+  @media print {
+    body { background:#fff; } main > :not(#preview) { display:none !important; }
+    .noprint { display:none !important; }
+    .paper { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .paper .pg + .pg { break-before:page; }
+    dialog#preview { position:static; display:block; border:0; width:auto; max-height:none; overflow:visible; padding:0; background:#fff; box-shadow:none; }
+    .paper .pg { border:0; padding:0; margin:0; box-shadow:none; border-radius:0; }
+    @page { size:A4; margin:15mm; }
+  }
+  @media (max-width:640px) {
+    .hero h1 { font-size:23px; } .hero .ico { display:none; } .card { padding:16px 14px; border-radius:16px; }
+    .chead .hint { margin-left:0; } .reqbox { border-radius:16px; position:static; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="hero-in">
+      <div class="ico" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M24 5C24 5 10 20.5 10 30a14 14 0 0028 0C38 20.5 24 5 24 5z" fill="#fff" fill-opacity=".92"/><path d="M17 31c0 3.9 3.1 7 7 7" stroke="#2f80ed" stroke-width="3" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <h1>하수 PCR 검증기</h1>
+        <p>Ct 값만 넣으면 표준곡선 · 증폭효율 · 회수율을 한 번에 확인하고, 결과서(HWPX)까지 만들어 드려요.</p>
+        <div class="chips">
+          <span class="chip beta">BETA · 숙련도 평가 임시 사용</span>
+          <span class="chip">🔒 브라우저 안에서만 처리 · 서버에 저장되지 않아요</span>
+          <label class="chip sw"><input type="checkbox" id="fxToggle" checked> 계산식 보기</label>
+          <a class="chip" href="#releases" style="text-decoration:none;color:#fff">⬇ 다운로드 · Releases</a>
+        </div>
+      </div>
+    </div>
+    <svg class="wave" viewBox="0 0 1440 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34V14C120 30 240 32 360 22S600 0 720 8s240 24 360 20 240-16 360-12v18z"/></svg>
+  </header>
+
+  <div class="betabox" role="note"><span>⚠️</span><span><b>베타 테스트 버전</b>입니다. 숙련도 평가를 위한 <b>임시 사용</b> 목적이며, 계산 결과와 내보낸 결과서는 제출 전에 반드시 직접 검토·확인해 주세요.</span></div>
+
+  <div class="layout">
+  <div id="appRoot">
+  <details class="card guide" open>
+    <summary>🧭 처음이세요? 이렇게 쓰시면 돼요</summary>
+    <ol class="steps">
+      <li><b>입력 템플릿 받기</b><br>녹색 칸에 값을 채워요 (또는 화면에 바로 입력)</li>
+      <li><b>HWPX 업로드</b><br>Ct와 기재값이 자동으로 들어와요</li>
+      <li><b>필수 항목 확인</b><br>Slope · Y-inter · R² · 효율 · 회수율이 자동 계산돼요</li>
+      <li><b>미리보기 → 내보내기</b><br>HWPX · 인쇄 · PDF로 저장해요</li>
+    </ol>
+    <p class="legend"><span class="tag req">필수</span> 계산에 꼭 필요한 값이에요. 비어 있으면 <span class="needsample">점선 테두리</span>로 표시되고 내보내기가 잠시 막혀요.<br>
+    <span class="tag opt">선택</span> 비워도 괜찮아요. 넣으면 <b>결과서 기재값과 일치 여부를 비교</b>해 드리거나 서식 상단에 기록해요.</p>
+  </details>
+  <div id="reqStatus" class="card reqbox"></div>
+
+  <section class="card">
+    <div class="chead"><span class="step">1</span><h2>결과서 불러오기</h2><span class="hint">이미 작성한 결과서(.hwpx)를 올리면 값이 자동으로 채워져요.</span></div>
+    <div id="drop" class="drop">
+      <input id="file" type="file" accept=".hwpx" hidden>
+      <button id="pick" class="primary">📄 HWPX 파일 선택</button>
+      <a class="btn" href="template.hwpx" download="BCoV_숙련도평가_입력템플릿.hwpx">⬇️ 입력 템플릿 받기</a>
+      <span class="note" style="margin:0">또는 이 영역에 파일을 끌어다 놓으세요. 파일은 브라우저 안에서만 처리돼요.</span>
+    </div>
+    <p class="note">처음이라면 템플릿을 받아 <span class="gbox">녹색 칸</span>(Ct, 기재값 등)에 입력한 뒤 다시 올리세요. 이 앱의 녹색 입력칸과 같은 구조예요.</p>
+    <p class="note" id="meta"></p>
+    <p class="note" id="msg"></p>
+  </section>
+
+  <section class="card">
+    <div class="chead"><span class="step">2</span><h2>기관 정보 <span class="tag opt">선택</span></h2><span class="hint">결과서 상단에 기록돼요. 모두 비워도 괜찮아요.</span></div>
+    <p class="note" style="margin:0 0 12px">아래 <span class="demoeg">회색 기울임</span> 글씨는 <b>재미로 넣어 둔 가안(가상 예시)</b>이에요. <b>칸을 클릭하면 지워지니</b> 본인 기관 정보를 입력해 주세요.</p>
+    <div class="row" id="metaFields"></div>
+    <div class="row" style="margin:0"><button id="metaDemo">✨ 예시 정보 채우기</button><button id="metaClear">🧹 모두 비우기</button></div>
+  </section>
+
+  <section class="card">
+    <div class="chead"><span class="step">3</span><h2>표준곡선 Ct 입력 <span class="tag req">필수</span></h2><span class="hint">희석 5단계 × 3반복의 Ct 값을 넣어요. 최소 2단계부터 계산할 수 있어요.</span></div>
+    <div class="row">
+      <label>원액 농도 (copies/µL) <span class="tag req">필수</span><input id="stock" data-k="stock" type="text" inputmode="decimal" class="bignum"></label>
+      <label>희석 배수 <span class="tag req">필수</span>
+        <select id="fold"><option value="10" selected>10배</option><option value="2">2배</option></select></label>
+      <label>X축 기준
+        <select id="xmode"><option value="log" selected>log10(copies/µL)</option><option value="dilution">희석단계 (0, −1, −2…)</option></select></label>
+      <button id="sample">🧪 샘플 불러오기</button>
+    </div>
+    <p class="note" id="stockNote" style="margin:-6px 0 12px"></p>
+    <div class="toolbar">
+      <div class="seg" role="tablist" aria-label="Ct 입력 방식" style="margin:0">
+        <button id="tabSimple" role="tab" class="on">✏️ 간편 입력</button>
+        <button id="tabSheet" role="tab">📊 스프레드시트</button>
+      </div>
+      <label class="chk" title="엑셀에서 가로로 복사한 값을 세로로(또는 반대로) 붙여넣고 싶을 때 켜세요"><input type="checkbox" id="pasteT"> 붙여넣을 때 <b>행↔열 바꾸기</b> (Transpose)</label>
+      <span class="note" id="pasteMsg" style="margin:0"></span>
+    </div>
+    <div id="ctSimple">
+      <div class="scroll"><table id="ct"><thead><tr><th>희석</th><th>농도 (copies/µL)</th><th>반복 1</th><th>반복 2</th><th>반복 3</th></tr></thead><tbody></tbody></table></div>
+      <p class="note">칸을 클릭해 입력하고 <b>↑ ↓ ← → / Enter</b>로 옮겨 다녀요. 엑셀에서 복사한 여러 칸을 <b>붙여넣기</b>할 수도 있고, 가로로 복사했다면 위의 <b>행↔열 바꾸기</b>를 켜 보세요.</p>
+    </div>
+    <div id="ctSheetBox" hidden>
+      <div id="ctSheetWrap"><div id="ctSheet"></div></div>
+      <p class="note">엑셀처럼 쓰는 스프레드시트예요: <b>방향키/Enter/Tab</b> 이동 · 여러 칸 <b>복사·붙여넣기</b> · 선택 영역 모서리 <b>드래그로 채우기</b>. 간편 입력과 값이 항상 같이 움직여요.</p>
+    </div>
+    <div class="row" style="margin:10px 0 0;gap:8px;align-items:center"><button id="ctCsv">CSV 받기</button><button id="ctCsvIn">CSV 불러오기</button><input type="file" id="ctFile" accept=".csv,.tsv,.txt" hidden><span class="note" id="ctMsg" style="margin:0"></span></div>
+    <p class="note"><span style="background:var(--warnbg);padding:0 8px;border-radius:6px">노란 칸</span> = 비어 있음 · <span style="background:var(--badbg);padding:0 8px;border-radius:6px">빨간 칸</span> = 숫자가 아님</p>
+  </section>
+
+  <section class="card">
+    <div class="chead"><span class="step">4</span><h2>표준곡선 결과</h2><span class="hint">증폭효율(Efficiency)은 가장 중요한 지표예요. 기준 범위 안인지 한눈에 보여 드려요.</span></div>
+    <div id="keyres" class="tiles"></div>
+    <h3 style="margin:16px 0 4px">결과서 기재값 vs 계산값 <span class="tag opt">선택</span></h3>
+    <p class="note" style="margin:0 0 10px">결과서에 적힌 Slope · Y-inter · R²를 넣으면 계산값과 비교해 <b>일치/불일치</b>를 알려 드려요. 비교하지 않을 거면 비워도 돼요.</p>
+    <div class="scroll"><table>
+      <thead><tr><th></th><th>결과서 기재값</th><th>계산값</th><th>차이</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td class="l">Slope<small class="fx">m = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)²</small></td><td><input id="rS" type="number" step="any"></td><td class="num" id="cS"></td><td class="num" id="dS"></td><td id="jS"></td></tr>
+        <tr><td class="l">Y-inter<small class="fx">b = ȳ − m·x̄</small></td><td><input id="rI" type="number" step="any"></td><td class="num" id="cI"></td><td class="num" id="dI"></td><td id="jI"></td></tr>
+        <tr><td class="l">R²<small class="fx">[Σ(x−x̄)(y−ȳ)]² / [Σ(x−x̄)²·Σ(y−ȳ)²]</small></td><td><input id="rR" type="number" step="any"></td><td class="num" id="cR"></td><td class="num" id="dR"></td><td id="jR"></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note" id="eff"></p>
+    <p class="fx">표준곡선: Ct = m·x + b (x = log10 농도 또는 희석단계, 전 반복 Ct를 최소제곱 회귀) · 증폭효율 E = 10<sup>(−1/m)</sup> − 1</p>
+    <div style="text-align:right;margin-top:8px"><button id="plotPng">🖼️ 그래프 PNG 저장</button></div>
+    <svg id="plot" viewBox="0 0 600 300" role="img" aria-label="표준곡선 그래프"></svg>
+  </section>
+
+  <section class="card">
+    <div class="chead"><span class="step">5</span><h2>회수율 분석 <span class="tag req">필수</span></h2><span class="hint">Ct와 spiked 농도를 넣으면 측정값(copies/mL)과 회수율(%)을 계산해요.</span></div>
+    <p class="fx" style="margin:0 0 12px">측정값 = 10^((Ct − Y-inter) / Slope) · 회수율(%) = 측정값 / spiked × 100</p>
+    <div class="row">
+      <label>Spiked 기본값 (copies/mL) <span class="tag req">필수</span><input id="spk" data-k="spiked" type="text" inputmode="decimal" class="bignum"></label>
+      <label>사용할 표준곡선
+        <select id="curveSrc" data-k="curveSrc"><option value="calc">위에서 계산한 값 (기본)</option><option value="reported">결과서 기재 Slope·Y-inter</option></select></label>
+      <label>SD 방식
+        <select id="sdmode" data-k="sdMode"><option value="pop">모집단 (STDEV.P)</option><option value="sample">표본 (STDEV.S)</option></select></label>
+      <button id="addrow">➕ 반복 추가</button>
+    </div>
+    <p class="note" id="recPasteMsg" style="margin:-6px 0 10px"></p>
+    <div class="scroll"><table id="rec"><thead><tr><th>반복</th><th>Ct <span class="tag req">필수</span></th><th>Spiked (copies/mL) <span class="tag req">필수</span></th><th>측정값 (copies/mL)<small class="fx">10^((Ct−b)/m)</small></th><th>회수율 (%)<small class="fx">측정값 / Spiked × 100</small></th><th>기재 측정값 <span class="tag opt">선택</span></th><th>기재 회수율 (%) <span class="tag opt">선택</span></th><th>판정</th></tr></thead><tbody></tbody></table></div>
+    <div class="scroll" style="margin-top:14px"><table id="sum"><thead><tr><th></th><th>계산값</th><th>기재값 <span class="tag opt">선택</span></th><th>판정</th></tr></thead><tbody>
+      <tr><td class="l">평균값<small class="fx">x̄ = Σ회수율 / n</small></td><td class="num" id="cM"></td><td><input id="rM" type="number" step="any"></td><td id="jM"></td></tr>
+      <tr><td class="l">표준편차 (SD)<small class="fx">√[Σ(x−x̄)² / n] (STDEV.P) 또는 n−1 (STDEV.S)</small></td><td class="num" id="cD"></td><td><input id="rD" type="number" step="any"></td><td id="jD"></td></tr>
+      <tr><td class="l">상대표준편차 (RSD, %)<small class="fx">SD / 평균 × 100</small></td><td class="num" id="cV"></td><td><input id="rV" type="number" step="any"></td><td id="jV"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <section class="card">
+    <div class="chead"><span class="step">6</span><h2>결과서 내보내기</h2><span class="hint"><b>표준서식</b>에 기관 정보와 계산값을 채워 HWPX로 만들어요. 결과서를 올렸다면 그 파일을 서식으로 써서 그림 등이 그대로 유지돼요.</span></div>
+    <div class="row" style="margin-bottom:0">
+      <button id="btnPreview">👀 미리보기</button>
+      <button id="btnExport" class="primary">📥 HWPX로 내보내기</button>
+      <button id="btnXlsx" title="수식이 살아 있는 엑셀 파일 (매크로 없음)">📗 엑셀 계산 시트</button>
+    </div>
+    <p class="note" id="expmsg"></p>
+  </section>
+
+  <details class="card fold">
+    <summary><span class="step" style="background:linear-gradient(135deg,#8aa4af,#5f7a86);box-shadow:none">⚙</span>판정 기준 <span class="tag opt">선택</span></summary>
+    <div class="body">
+      <p class="note" style="margin-top:0">기본값은 현재 사용 중인 오차예요. 바꾸지 않아도 되고, 바꾸면 이 브라우저에 저장돼요.</p>
+      <div class="row" id="params"></div>
+      <button id="reset">↩︎ 기본값으로 되돌리기</button>
+    </div>
+  </details>
+  </div>
+
+  <aside class="side" id="releases" aria-label="저장소 정보와 다운로드">
+    <div class="sidecard">
+      <section class="sbox">
+        <h3>About</h3>
+        <p>하수 병원체 PCR 숙련도 평가용 <b>표준곡선 · 증폭효율 · 회수율 검증기</b>. Ct 값으로 결과서(HWPX)를 검증하고 내보내요.</p>
+        <ul class="smeta">
+          <li><span class="ic">🌐</span><a href="https://wwpcr.web.app" id="siteLink">wwpcr.web.app</a></li>
+          <li><span class="ic">📦</span><a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub 저장소</a></li>
+          <li><span class="ic">📖</span><button class="linkbtn" id="sideChangelog" type="button">변경 이력</button></li>
+          <li><span class="ic">⚖️</span><a href="LICENSE.txt" target="_blank">GPL v3 라이선스</a></li>
+          <li><span class="ic">🔒</span>서버에 데이터가 저장되지 않아요</li>
+          <li><span class="ic">🧪</span>베타 · 숙련도 평가 임시 사용</li>
+        </ul>
+        <div class="topics"><span>BCoV</span><span>RT-qPCR</span><span>wastewater</span><span>standard-curve</span><span>hwpx</span><span>excel</span></div>
+      </section>
+      <section class="sbox">
+        <h3>Releases <span class="count" id="relCount">…</span></h3>
+        <div id="relLatest"><div class="dl-empty">불러오는 중…</div></div>
+        <ul class="older" id="relOlder"></ul>
+        <button class="linkbtn" id="relAll" type="button"></button>
+      </section>
+      <section class="sbox">
+        <h3>받을 수 있는 파일</h3>
+        <a class="dlitem" href="template.hwpx" download="BCoV_숙련도평가_입력템플릿.hwpx"><span class="ai">📄</span><span>HWPX 입력 템플릿<small>녹색 칸에 입력 후 다시 업로드</small></span></a>
+        <button class="dlitem" id="dlXlsx" type="button"><span class="ai">📗</span><span>엑셀 계산 시트 (.xlsx)<small>현재 입력값 포함 · 수식 · 매크로 없음</small></span></button>
+        <button class="dlitem" id="dlReport" type="button"><span class="ai">📝</span><span>결과서 HWPX · PDF · PNG<small>미리보기에서 저장</small></span></button>
+        <button class="dlitem" id="dlCsv" type="button"><span class="ai">🗒️</span><span>표준곡선 Ct CSV<small>엑셀에서 열림</small></span></button>
+        <button class="dlitem" id="dlPlot" type="button"><span class="ai">🖼️</span><span>표준곡선 그래프 PNG<small>2074 × 1212</small></span></button>
+      </section>
+      <section class="sbox">
+        <h3>Contributors <span class="count">2</span></h3>
+        <div class="avatars"><span class="avatar" title="치치박사">치</span><span class="avatar b" title="박박사">박</span><span style="font-size:13px;color:var(--mut)">치치박사 &amp; 박박사</span></div>
+      </section>
+    </div>
+  </aside>
+  </div>
+
+  <dialog id="preview" class="wide">
+    <div class="noprint" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin:0">내보내기 미리보기</h2>
+      <div class="row" style="margin:0;flex:0 0 auto;gap:8px;align-items:center">
+        <label style="flex:0 0 auto;flex-direction:row;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="pvDiff" checked> 불일치 값 빨갛게 표시</label>
+        <button id="pvPrint">🖨️ 인쇄</button>
+        <button id="pvPdf">PDF 다운로드</button>
+        <button id="pvPng">PNG 다운로드</button>
+        <button id="pvExport" class="primary">HWPX로 내보내기</button>
+        <button id="pvClose">닫기</button>
+      </div>
+    </div>
+    <p class="note noprint" id="pvNote"></p>
+    <div id="pvBody"></div>
+  </dialog>
+
+  <footer class="foot">
+    <span>제작: 치치박사&amp;박박사</span> · <span id="ver"></span> <span class="betatag">BETA</span> · <span>GPL v3</span><br>
+    <a href="#" id="aboutOpen">정보 · 서드파티 · 변경 이력</a> ·
+    <a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+  <dialog id="about" class="wide">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h2 style="margin:0" id="aboutTitle"></h2>
+      <button id="aboutClose">닫기</button>
+    </div>
+    <p class="note"><b>베타 테스트 버전입니다.</b> 숙련도 평가를 위한 임시 사용 목적이며, 안정성·정확성을 보증하지 않습니다.<br>제작: 치치박사&amp;박박사 · Copyright © 2026 · 이 프로그램은 자유 소프트웨어이며 <a href="LICENSE.txt" target="_blank">GPL v3</a> 조건으로 배포됩니다. 보증은 제공되지 않습니다.</p>
+    <div class="row" style="gap:8px;margin:10px 0 8px">
+      <button data-doc="THIRD_PARTY_NOTICES.md" class="primary">서드파티 고지</button>
+      <button data-doc="CHANGELOG.md">변경 이력</button>
+      <button data-doc="LICENSE.txt">라이선스 전문</button>
+    </div>
+    <pre id="aboutDoc" class="doc"></pre>
+  </dialog>
+</main>
+<script src="vendor/jszip/jszip.min.js"></script>
+<script src="vendor/jspreadsheet/jsuites.js"></script>
+<script src="vendor/jspreadsheet/jspreadsheet.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

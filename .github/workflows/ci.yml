@@ -1,0 +1,25 @@
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Unit tests
+        run: npm test
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build the launcher (Linux smoke build; also compiles the embedded app)
+        run: node tools/build-exe.mjs --linux
+      - name: Launcher serves the app
+        run: |
+          WWPCR_NO_OPEN=1 WWPCR_PORT=47555 ./dist/WasteWaterPCRValidator-linux-x64 &
+          sleep 2
+          curl -fsS -o /dev/null http://127.0.0.1:47555/
+          curl -fsS http://127.0.0.1:47555/version.js | grep VERSION
