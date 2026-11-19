@@ -673,6 +673,10 @@ function showMenu(m) {
   $('fxChip').style.display = pr ? 'none' : ''; $('betaChip').textContent = pr ? 'BETA · 검출한계(LoD) 분석' : 'BETA · 숙련도 평가 임시 사용'; $('footName').hidden = !pr;
   $('betaTxt').innerHTML = pr ? '<b>베타 테스트 버전</b>입니다. 검출한계(LoD) 분석 결과는 통계 소프트웨어(예: MedCalc, R)와 <b>교차 확인</b>한 뒤 사용해 주세요. 신뢰구간 계산 방식에 따라 값이 다를 수 있어요.' : showMenu.beta;
   document.body.classList.toggle('pbtheme', pr); $('icoWater').style.display = pr ? 'none' : ''; $('icoProbit').style.display = pr ? '' : 'none'; $('themeColor').content = pr ? '#5b4bd5' : '#0e8fa0';
+  showMenu.about ??= $('aboutTxt').innerHTML; showMenu.abeta ??= $('aboutBeta').textContent;
+  $('aboutTxt').innerHTML = pr ? '농도별 검출(양성) 횟수로 <b>Probit 회귀 · 검출한계(LoD)</b>를 구하는 분석기. <b>C05 · C50 · C95</b>와 95% 신뢰구간, Dose-Response 그래프 · 표를 만들어요.' : showMenu.about;
+  $('aboutBeta').textContent = pr ? '베타 · 통계 소프트웨어와 교차 확인 권장' : showMenu.abeta;
+  $('topicsMain').style.display = pr ? 'none' : ''; $('topicsPb').style.display = pr ? '' : 'none';
   document.title = pr ? 'Probit 분석기' : showMenu.title[0];
   try { history.replaceState(null, '', pr ? '#probit' : location.pathname + location.search); } catch {}
 }

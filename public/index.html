@@ -416,16 +416,17 @@
     <div class="sidecard">
       <section class="sbox">
         <h3>About</h3>
-        <p>하수 병원체 PCR 숙련도 평가용 <b>표준곡선 · 증폭효율 · 회수율 검증기</b>. Ct 값으로 결과서(HWPX)를 검증하고 내보내요.</p>
+        <p id="aboutTxt">하수 병원체 PCR 숙련도 평가용 <b>표준곡선 · 증폭효율 · 회수율 검증기</b>. Ct 값으로 결과서(HWPX)를 검증하고 내보내요.</p>
         <ul class="smeta">
           <li><span class="ic">🌐</span><a href="https://wwpcr.web.app" id="siteLink">wwpcr.web.app</a></li>
           <li><span class="ic">📦</span><a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub 저장소</a></li>
           <li><span class="ic">📖</span><button class="linkbtn" id="sideChangelog" type="button">변경 이력</button></li>
           <li><span class="ic">⚖️</span><a href="LICENSE.txt" target="_blank">GPL v3 라이선스</a></li>
           <li><span class="ic">🔒</span>서버에 데이터가 저장되지 않아요</li>
-          <li><span class="ic">🧪</span>베타 · 숙련도 평가 임시 사용</li>
+          <li><span class="ic">🧪</span><span id="aboutBeta">베타 · 숙련도 평가 임시 사용</span></li>
         </ul>
-        <div class="topics"><span>BCoV</span><span>RT-qPCR</span><span>wastewater</span><span>standard-curve</span><span>hwpx</span><span>excel</span></div>
+        <div class="topics" id="topicsMain"><span>BCoV</span><span>RT-qPCR</span><span>wastewater</span><span>standard-curve</span><span>hwpx</span><span>excel</span></div>
+        <div class="topics" id="topicsPb" style="display:none"><span>probit</span><span>LoD</span><span>C95</span><span>dose-response</span><span>Fieller</span><span>binomial</span></div>
       </section>
       <section class="sbox">
         <h3>Releases <span class="count" id="relCount">…</span></h3>
