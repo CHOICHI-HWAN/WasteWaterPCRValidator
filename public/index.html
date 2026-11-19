@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="vendor/jspreadsheet/jsuites.css">
 <link rel="stylesheet" href="vendor/jspreadsheet/jspreadsheet.css">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0e8fa0">
+<meta name="theme-color" id="themeColor" content="#0e8fa0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2048%2048%27%3E%3Cdefs%3E%3ClinearGradient%20id=%27g%27%20x1=%270%27%20y1=%270%27%20x2=%271%27%20y2=%271%27%3E%3Cstop%20offset=%270%27%20stop-color=%27%230e8fa0%27/%3E%3Cstop%20offset=%271%27%20stop-color=%27%232f80ed%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width=%2748%27%20height=%2748%27%20rx=%2711%27%20fill=%27url%28%23g%29%27/%3E%3Cpath%20d=%27M24%209C24%209%2013%2021%2013%2029a11%2011%200%200022%200C35%2021%2024%209%2024%209z%27%20fill=%27%23fff%27/%3E%3C/svg%3E">
 <title>하수 PCR 검증기</title>
 <style>
@@ -32,6 +32,11 @@
   h1,h2,h3 { margin:0; letter-spacing:-.01em; }
 
   /* ===== 히어로 ===== */
+  /* Probit 분석 테마 (인디고 · 보라) */
+  body.pbtheme { --bg:#f4f3fb; --fg:#1f1b3d; --mut:#716d92; --line:#e2dff2; --acc:#5b4bd5; --acc2:#9b5cf0; --accsoft:#ebe8fb; --shadow:0 8px 28px rgba(60,40,140,.09); --shadow-s:0 2px 8px rgba(60,40,140,.08); }
+  @media (prefers-color-scheme: dark) { body.pbtheme { --bg:#12101f; --card:#1c1930; --fg:#ebe8fb; --mut:#a49fc9; --line:#2f2b4d; --acc:#a597ff; --acc2:#c79bff; --accsoft:#27223f; } }
+  body.pbtheme .hero { background:linear-gradient(135deg,#4a3bc4 0%,#9b5cf0 100%); }
+  body.pbtheme .step, body.pbtheme button.primary { box-shadow:0 3px 8px rgba(91,75,213,.35); }
   .hero { margin:0 -16px 18px; padding:30px 16px 0; background:linear-gradient(135deg,#0e8fa0 0%,#2f80ed 100%); color:#fff; position:relative; overflow:hidden; }
   @media (min-width:1392px) { .hero { margin:0 calc(50% - 50vw); padding-left:calc(50vw - 680px + 16px); padding-right:calc(50vw - 680px + 16px); } }
   .hero-in { max-width:1328px; display:flex; gap:18px; align-items:center; padding-bottom:40px; position:relative; z-index:1; }
@@ -230,7 +235,8 @@
   <header class="hero">
     <div class="hero-in">
       <div class="ico" aria-hidden="true">
-        <svg width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M24 5C24 5 10 20.5 10 30a14 14 0 0028 0C38 20.5 24 5 24 5z" fill="#fff" fill-opacity=".92"/><path d="M17 31c0 3.9 3.1 7 7 7" stroke="#2f80ed" stroke-width="3" stroke-linecap="round"/></svg>
+        <svg id="icoWater" width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M24 5C24 5 10 20.5 10 30a14 14 0 0028 0C38 20.5 24 5 24 5z" fill="#fff" fill-opacity=".92"/><path d="M17 31c0 3.9 3.1 7 7 7" stroke="#2f80ed" stroke-width="3" stroke-linecap="round"/></svg>
+        <svg id="icoProbit" style="display:none" width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M5 40h38" stroke="#fff" stroke-opacity=".7" stroke-width="2.5" stroke-linecap="round"/><path d="M5 38C14 38 16 10 24 10s10 28 19 28" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><path d="M24 10v28" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-dasharray="3 3"/><circle cx="24" cy="10" r="3.2" fill="#fff"/></svg>
       </div>
       <div>
         <h1 id="heroTitle">하수 PCR 검증기</h1>
