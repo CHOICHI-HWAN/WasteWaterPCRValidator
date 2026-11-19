@@ -1,10 +1,10 @@
 {
   "name": "wastewater-pcr-validator",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/calc.test.js && node test/num.test.js",
+    "test": "node test/calc.test.js && node test/num.test.js && node test/probit.test.js",
     "serve": "firebase serve --only hosting",
     "deploy": "node tools/sync-docs.js && node tools/release.mjs && firebase deploy --only hosting",
     "sync-docs": "node tools/sync-docs.js",

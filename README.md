@@ -26,6 +26,8 @@ A browser tool that takes the Ct values of the BCoV standard curve and the extra
 4. **Recovery analysis.** Ct + spiked concentration -> measured concentration (copies/mL) and recovery (%), with mean, SD (population or sample) and RSD, using either the curve calculated above (default) or the one written on the form.
 5. **Formulas shown with the numbers filled in** (`-119.48 / 30`, `26.1613 - (-3.9827) x 4.1461`), so every value can be checked by hand; the switch in the header hides them.
 
+5b. **Probit regression / detection limit (LoD).** From the number of positives out of the replicates tested at each concentration, fits `probit(p) = a + b log10(conc)` by maximum likelihood and reports **C05, C50 and C95** (the concentrations with 5 %, 50 % and 95 % detection) with Fieller 95 % intervals, goodness of fit, a detection-rate curve and warnings (extrapolation, wide intervals, complete separation). Validated against an independent optimiser and a classic published data set.
+
 ### Result forms (HWPX)
 
 6. **Read a filled-in form.** Upload a `.hwpx` result form; Ct values, reported Slope / Y-inter / R^2, recovery rows and institution info are read in your browser (not uploaded).
@@ -54,6 +56,8 @@ A browser tool that takes the Ct values of the BCoV standard curve and the extra
 | Slope, Y-inter, R^2 and Efficiency cards; match / mismatch against the form | Recovery with formulas filled in, mean / SD / RSD |
 | ![Preview](docs/img/preview.png) | ![Excel](docs/img/excel.png) |
 | Export preview (mismatches in red bold; print / PDF / PNG / HWPX) | Excel workbook (live formulas, no macros) |
+| ![Probit](docs/img/probit.png) | |
+| Probit regression: C05 / C50 / C95 with 95 % intervals and the detection-rate curve (sample data) | |
 
 ## How to use
 
@@ -85,7 +89,7 @@ npm test                                           # unit tests (Node 18+)
 
 | Command | What it does |
 |---|---|
-| `npm test` | Calculation, number parsing, rounding and version-consistency tests |
+| `npm test` | Calculation, number parsing, rounding, probit and version-consistency tests |
 | `npm run sync-docs` | Copy `LICENSE` / `CHANGELOG` / `THIRD_PARTY_NOTICES` into `public/` (shown in the app) |
 | `npm run build:exe` | Build the Windows exe with Go (`--arm64`, `--linux` variants in `tools/build-exe.mjs`) |
 | `npm run release` | Build the exe and the zip + `releases.json` for the site's Releases panel |
@@ -111,6 +115,7 @@ All arithmetic is IEEE-754 double (checked against exact rational arithmetic: er
 public/                  # the whole web app (static files, deployed as is)
   index.html  app.js     # UI and wiring
   calc.js num.js         # regression/recovery, strict number parsing, rounding
+  probit.js              # probit regression, C05/C50/C95, Fieller intervals, special functions
   hwpx.js                # read and write HWPX (zip + XML)
   xlsx-export.js         # Excel workbook with live formulas
   chart.js releases.js   # standard-curve figure, Releases side panel

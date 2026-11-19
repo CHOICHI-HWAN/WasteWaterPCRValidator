@@ -26,6 +26,8 @@ BCoV 표준곡선과 추출 회수율 시료의 Ct 값을 넣으면 **Slope, Y �
 4. **회수율 분석.** Ct와 spiked 농도로 측정값(copies/mL)과 회수율(%), 평균·SD(모집단/표본)·RSD를 계산합니다. 표준곡선은 위에서 계산한 값(기본) 또는 결과서에 적힌 값을 고를 수 있습니다.
 5. **계산식에 실제 숫자를 대입해서 표시**(`−119.48 / 30`, `26.1613 − (−3.9827)×4.1461`)하므로 손으로 검산할 수 있습니다. 상단 스위치로 숨길 수 있습니다.
 
+5b. **Probit 회귀 / 검출 한계(LoD).** 농도별 시행 횟수와 양성 횟수로 `probit(p) = a + b·log10(농도)`를 최대우도로 적합하고, **C05 · C50 · C95**(검출률 5 · 50 · 95 %가 되는 농도)를 Fieller 95% 신뢰구간, 적합도, 검출률 곡선과 함께 보여 줍니다. 외삽, 넓은 신뢰구간, 완전 분리 같은 경우는 경고합니다. 독립 최적화와 공개 고전 자료로 검증했습니다.
+
 ### 결과서(HWPX)
 
 6. **작성한 결과서 읽기.** `.hwpx` 결과서를 올리면 Ct, 기재된 Slope·Y-inter·R², 회수율 행, 기관 정보를 브라우저 안에서 읽습니다(업로드되지 않음).
@@ -54,6 +56,8 @@ BCoV 표준곡선과 추출 회수율 시료의 Ct 값을 넣으면 **Slope, Y �
 | Slope · Y-inter · R² · Efficiency 카드와 결과서 대비 일치/불일치 | 계산식이 대입된 회수율, 평균·SD·RSD |
 | ![미리보기](docs/img/preview.png) | ![엑셀](docs/img/excel.png) |
 | 내보내기 미리보기(불일치는 빨간 굵은 글씨, 인쇄·PDF·PNG·HWPX) | 엑셀 계산 시트(수식, 매크로 없음) |
+| ![Probit](docs/img/probit.png) | |
+| Probit 회귀: C05 / C50 / C95와 95% 신뢰구간, 검출률 곡선(예시 자료) | |
 
 ## 사용 방법
 
@@ -85,7 +89,7 @@ npm test                                           # 단위 테스트 (Node 18+)
 
 | 명령 | 하는 일 |
 |---|---|
-| `npm test` | 계산, 숫자 해석, 반올림, 버전 일관성 테스트 |
+| `npm test` | 계산, 숫자 해석, 반올림, probit, 버전 일관성 테스트 |
 | `npm run sync-docs` | `LICENSE` / `CHANGELOG` / `THIRD_PARTY_NOTICES`를 `public/`으로 복사(앱에서 표시) |
 | `npm run build:exe` | Go로 Windows exe 빌드(`tools/build-exe.mjs`의 `--arm64`, `--linux` 옵션) |
 | `npm run release` | exe와 zip, 사이트 Releases 패널용 `releases.json` 생성 |
@@ -111,6 +115,7 @@ npm test                                           # 단위 테스트 (Node 18+)
 public/                  # 웹 앱 전체(정적 파일, 그대로 배포)
   index.html  app.js     # 화면과 연결
   calc.js num.js         # 회귀·회수율, 엄격한 숫자 해석, 반올림
+  probit.js              # probit 회귀, C05/C50/C95, Fieller 신뢰구간, 특수 함수
   hwpx.js                # HWPX(zip + XML) 읽기/쓰기
   xlsx-export.js         # 수식이 살아 있는 엑셀 시트
   chart.js releases.js   # 표준곡선 그림, Releases 사이드 패널

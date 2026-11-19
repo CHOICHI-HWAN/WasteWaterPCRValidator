@@ -8,6 +8,8 @@ import { parseStrict, explainInvalid, fixed } from './num.js';
 import { curvePng, drawStandardCurve } from './chart.js';
 import { buildWorkbook } from './xlsx-export.js';
 import { initSidePanel } from './releases.js';
+import { probitFit } from './probit.js';
+import { plotSvg, fmtC } from './probit-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 3) => (Number.isFinite(v) ? fixed(v, d) : '–');
@@ -201,6 +203,7 @@ function recalc() {
     jj('jM', 'rM', +fixed(mn, 2)); jj('jD', 'rD', +fixed(s, 2)); jj('jV', 'rV', +fixed(s / mn * 100, 2));
   } else ['cM', 'cD', 'cV', 'jM', 'jD', 'jV'].forEach((i) => ($(i).innerHTML = ''));
   updateRequired();
+  recalcPb();
   refreshNum();
 }
 
@@ -291,13 +294,13 @@ async function handleFile(file) {
 }
 
 // ---- 회수율 표: 방향키 이동 / 엑셀 붙여넣기 ----
-const GRID = '#ct input, #rec input';
+const GRID = '#ct input, #rec input, #pb input';
 const inputsOf = (tr) => [...tr.querySelectorAll('input')];
 function gridCell(el, dr, dc, create = false) {
   const tr = el.closest('tr'), tbody = tr.parentElement;
   const nr = [...tbody.rows].indexOf(tr) + dr, nc = inputsOf(tr).indexOf(el) + dc;
   if (nr < 0 || nc < 0) return null;
-  if (nr >= tbody.rows.length) { if (!create || tbody !== recBody) return null; while (recBody.rows.length <= nr) addRecRow({}); }
+  if (nr >= tbody.rows.length) { if (!create || (tbody !== recBody && tbody !== pbBody)) return null; while (tbody.rows.length <= nr) (tbody === recBody ? addRecRow : addPbRow)({}); }
   return inputsOf(tbody.rows[nr])[nc] ?? null;
 }
 document.addEventListener('keydown', (e) => {
@@ -605,6 +608,59 @@ async function downloadPng() {
   } catch (e) { $('pvNote').textContent = 'PNG 저장 실패: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = old; }
 }
+// ---- Probit 회귀 · LoD (C05 · C50 · C95): 농도별 시행 수·양성 수 → probit 회귀 ----
+const pbBody = $('pb').querySelector('tbody');
+const PB_SAMPLE = [1000, 100, 10, 1, 0.1].map((conc, i) => ({ conc, n: 25, k: [25, 22, 16, 6, 0][i] }));   // 예시(가상) 자료
+function addPbRow(d = {}) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input type="text" inputmode="decimal" class="pbc" autocomplete="off"></td><td class="pbcalc pbx"></td>' +
+    '<td><input type="text" inputmode="numeric" class="pbn" autocomplete="off"></td><td><input type="text" inputmode="numeric" class="pbk" autocomplete="off"></td><td class="pbcalc pbr"></td>';
+  pbBody.appendChild(tr);
+  [['.pbc', d.conc], ['.pbn', d.n], ['.pbk', d.k]].forEach(([q, v]) => { tr.querySelector(q).value = Number.isFinite(v) ? String(v) : ''; });
+}
+function setPb(rows) { pbBody.innerHTML = ''; (rows?.length ? rows : Array.from({ length: 5 }, () => ({}))).forEach(addPbRow); }
+let pbLast = null;
+function recalcPb() {
+  const unit = $('pbUnit').value.trim();
+  $('pbU').textContent = unit ? `(${unit})` : '';
+  const rows = [], badRaw = {};
+  [...pbBody.rows].forEach((tr, i) => {
+    const els = ['.pbc', '.pbn', '.pbk'].map((q) => tr.querySelector(q)), raw = els.map((e) => e.value.trim()), nums = els.map(val);
+    const bi = raw.findIndex((s, j) => s !== '' && !Number.isFinite(nums[j]));
+    if (bi >= 0) badRaw[i + 1] = `'${raw[bi]}' — ${explainInvalid(raw[bi])}`;
+    els.forEach((e, j) => e.classList.toggle('bad', raw[j] !== '' && !Number.isFinite(nums[j])));
+    tr.querySelector('.pbx').textContent = nums[0] > 0 ? fixed(Math.log10(nums[0]), 2) : '';
+    tr.querySelector('.pbr').textContent = nums[1] > 0 && Number.isFinite(nums[2]) ? `${fixed(nums[2] / nums[1] * 100, 1)} %` : '';
+    if (raw.some(Boolean)) rows.push({ conc: nums[0], n: nums[1], k: nums[2], rowNo: i + 1 });
+  });
+  const msgs = [], clear = () => { $('pbTiles').innerHTML = ''; $('pbDetail').innerHTML = ''; $('pbPlot').innerHTML = ''; pbLast = null; };
+  if (!rows.length) { $('pbMsgs').innerHTML = '<div class="note">자료를 입력하거나 <b>샘플 불러오기</b>를 눌러 보세요.</div>'; clear(); return; }
+  const fit = probitFit(rows);
+  fit.dropped.forEach((d) => msgs.push(`<div class="pbwarn">${d.rowNo}행은 계산에서 제외했어요 — ${badRaw[d.rowNo] ?? d.reason}</div>`));
+  if (!fit.ok) { msgs.push(`<div class="pberr">${fit.reason}</div>`); $('pbMsgs').innerHTML = msgs.join(''); clear(); return; }
+  fit.warnings.forEach((w) => msgs.push(`<div class="pbwarn">⚠ ${w}</div>`));
+  $('pbMsgs').innerHTML = msgs.join('');
+  const u = unit ? ` ${unit}` : '';
+  const tile = (lab, c, cls = '') => `<div class="tile ${cls}"><span>${lab} <small>(검출률 ${fixed(c.p * 100, 0)} %)</small></span><b>${fmtC(c.c)}</b><small>${c.bounded ? `95% 신뢰구간 ${fmtC(c.lo)} – ${fmtC(c.hi)}${u}` : '신뢰구간을 정할 수 없음'}</small></div>`;
+  $('pbTiles').innerHTML = tile('C05', fit.C05) + tile('C50', fit.C50) + tile('C95', fit.C95, 'eff');
+  const p3 = (p) => (p === null ? '–' : p < 0.001 ? '< 0.001' : fixed(p, 3));
+  $('pbDetail').innerHTML = `probit(p) = <b>${fixed(fit.a, 3)}</b> + <b>${fixed(fit.b, 3)}</b> · log10(농도) &nbsp;·&nbsp; a SE ${fixed(fit.seA, 3)}, b SE ${fixed(fit.seB, 3)} (기울기 p ${p3(fit.pSlope)})<br>` +
+    `적합도: 편차 ${fixed(fit.deviance, 2)} (자유도 ${fit.df}${fit.df > 0 ? `, p = ${p3(fit.pDev)}` : ''}), Pearson χ² ${fixed(fit.pearson, 2)}${fit.df > 0 ? ` (p = ${p3(fit.pPear)})` : ''} &nbsp;·&nbsp; 농도 수준 ${fit.used.length}개, 총 시행 ${fit.n}회, 반복 계산 ${fit.iter}회`;
+  $('pbPlot').innerHTML = plotSvg(fit, unit);
+  pbLast = fit;
+}
+async function pbPngSave() {
+  const svg = $('pbPlot').querySelector('svg');
+  if (!svg) { $('pbMsgs').insertAdjacentHTML('beforeend', '<div class="pbwarn">저장할 그래프가 없어요. 먼저 자료를 입력하세요.</div>'); return; }
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas'); c.width = 1280; c.height = 720; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    saveBlob(await new Promise((res) => c.toBlob(res, 'image/png')), 'Probit_LoD.png');
+  } finally { URL.revokeObjectURL(url); }
+}
+setPb();
+
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {
   return {
@@ -750,7 +806,7 @@ if (!LOCAL) import("./firebase.js").catch(() => {});
 {
   const q = new URLSearchParams(location.search);
   if (q.get('demo')) {
-    $('sample').click();
+    $('sample').click(); setPb(PB_SAMPLE); recalc();
     if (q.get('view') === 'preview') setTimeout(() => $('btnPreview').click(), 300);
     if (q.get('view') === 'sheet') $('tabSheet').click();
   }
@@ -763,6 +819,11 @@ $('dlXlsx').addEventListener('click', () => $('btnXlsx').click());
 $('dlReport').addEventListener('click', () => $('btnPreview').click());
 $('dlCsv').addEventListener('click', downloadCsv);
 $('dlPlot').addEventListener('click', downloadPlotPng);
+$('pbSample').addEventListener('click', () => { setPb(PB_SAMPLE); recalc(); });
+$('pbAdd').addEventListener('click', () => { addPbRow({}); recalc(); });
+$('pbClear').addEventListener('click', () => { setPb(); recalc(); });
+$('pbPng').addEventListener('click', pbPngSave);
+$('dlPb').addEventListener('click', pbPngSave);
 // exe(로컬 서버) 모드: 브라우저 탭이 열려 있는 동안 신호를 보내고, 마지막 탭을 닫으면 서버가 스스로 종료된다.
 if (LOCAL && location.protocol === 'http:') {
   const tabId = Math.random().toString(36).slice(2, 12);
