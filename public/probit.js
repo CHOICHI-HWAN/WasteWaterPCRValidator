@@ -71,7 +71,8 @@ export function wilson(k, n, z = 1.959964) {
 
 // ---------- Probit 회귀 ----------
 // levels: [{ conc, n, k }]  (conc > 0, 0 ≤ k ≤ n, n ≥ 1). 반환: { ok, reason, ... }
-export function probitFit(levels) {
+export function probitFit(levels, opts = {}) {
+  const method = opts.ci === 'profile' ? 'profile' : 'fieller';
   const used = [], dropped = [], warnings = [];
   levels.forEach((l, i) => {
     const { conc, n, k } = l;
@@ -131,12 +132,40 @@ export function probitFit(levels) {
     pSlope: 2 * normCdf(-Math.abs(b / seB)) };
   // C_p 와 95% 신뢰구간 (Fieller)
   const t = 1.959964;
-  res.cp = (p) => {
-    const z = normQuantile(p), x = (z - a) / b, out = { p, z, x, c: 10 ** x, lo: null, hi: null, bounded: false };
+  const fieller = (z) => {                  // Fieller: (a - z + b x)² = t² (v_aa + 2x v_ab + x² v_bb)  의 두 근 (log10 농도)
     const A = b * b - t * t * cov.bb, B = 2 * ((a - z) * b - t * t * cov.ab), C = (a - z) ** 2 - t * t * cov.aa, disc = B * B - 4 * A * C;
-    if (A > 0 && disc >= 0) { const r1 = (-B - Math.sqrt(disc)) / (2 * A), r2 = (-B + Math.sqrt(disc)) / (2 * A); out.lo = 10 ** Math.min(r1, r2); out.hi = 10 ** Math.max(r1, r2); out.bounded = true; }
+    if (!(A > 0 && disc >= 0)) return null;
+    const r1 = (-B - Math.sqrt(disc)) / (2 * A), r2 = (-B + Math.sqrt(disc)) / (2 * A);
+    return [Math.min(r1, r2), Math.max(r1, r2)];
+  };
+  // 프로파일 우도: x_p 를 고정하고 b 에 대해 최대화한 로그우도가 (최대값 − χ²₁(0.95)/2) 이상인 x_p 의 범위
+  const llxy = (aa, bb) => { let s = 0; for (const l of L) { const e = aa + bb * l.x, mu = Math.min(Math.max(P(e), 1e-300), 1), nu = Math.min(Math.max(Q(e), 1e-300), 1); s += (l.k > 0 ? l.k * Math.log(mu) : 0) + (l.n - l.k > 0 ? (l.n - l.k) * Math.log(nu) : 0); } return s; };
+  const llMax = llxy(a, b), crit = llMax - 1.920729;
+  const profLL = (z, x) => { let lo = 1e-3, hi = Math.max(60, 20 * Math.abs(b)); const g = (bb) => llxy(z - bb * x, bb); for (let i = 0; i < 48; i++) { const m1 = lo + (hi - lo) * 0.381966, m2 = lo + (hi - lo) * 0.618034; if (g(m1) < g(m2)) lo = m1; else hi = m2; } return g((lo + hi) / 2); };
+  const profile = (z, hint) => {
+    const xhat = (z - a) / b, out = [null, null];
+    [-1, 1].forEach((dir, k) => {
+      let inside = xhat, outside = null;
+      const guess = hint ? hint[k] : null;
+      if (guess !== null && Number.isFinite(guess) && (guess - xhat) * dir > 0 && profLL(z, guess) < crit) outside = guess;
+      for (let s = 0.1, x = xhat; outside === null && s <= 6.0001; s += 0.1) { x = xhat + dir * s; if (profLL(z, x) < crit) outside = x; else inside = x; }
+      if (outside === null) return;
+      for (let i = 0; i < 36; i++) { const mid = (inside + outside) / 2; if (profLL(z, mid) < crit) outside = mid; else inside = mid; }
+      out[k] = (inside + outside) / 2;
+    });
+    return out[0] !== null && out[1] !== null ? out : null;
+  };
+  res.method = method;
+  res.cp = (p, m = method) => {
+    const z = normQuantile(p), x = (z - a) / b, out = { p, z, x, c: 10 ** x, lo: null, hi: null, bounded: false, method: m };
+    const f = fieller(z);
+    const r = m === 'profile' ? profile(z, f) : f;
+    if (r) { out.lo = 10 ** r[0]; out.hi = 10 ** r[1]; out.bounded = true; }
     return out;
   };
+  // 곡선의 신뢰구간 띠: 확률 p 마다 (하한 농도, 상한 농도)
+  res.band = (np = 60, m = method) => { const pts = []; for (let i = 0; i < np; i++) { const z = -3.4 + (6.8 * i) / (np - 1), p = normCdf(z), c = res.cp(p, m); pts.push({ p, x: c.x, lo: c.lo === null ? null : Math.log10(c.lo), hi: c.hi === null ? null : Math.log10(c.hi) }); } return pts; };
+  res.prob = (x) => normCdf(a + b * x);
   res.C05 = res.cp(0.05); res.C50 = res.cp(0.5); res.C95 = res.cp(0.95);
   // 경고
   const cmin = L[0].conc, cmax = L[L.length - 1].conc;

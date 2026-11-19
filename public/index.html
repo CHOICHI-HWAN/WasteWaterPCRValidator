@@ -162,6 +162,8 @@
 
 
   /* ===== 2열 레이아웃: 본문 + 오른쪽 사이드 패널 (GitHub 저장소 화면처럼) ===== */
+  .drt { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; } .drt th,.drt td { padding:5px 12px; text-align:right; border-bottom:1px solid var(--line); } .drt th { color:var(--mut); font-size:12px; } .drt tr.key td { font-weight:800; background:var(--accsoft); }
+  .pbplot svg { max-width:100%; height:auto; }
   .layout { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; align-items:start; }
   @media (min-width:1040px) { .layout { grid-template-columns:minmax(0,1fr) 304px; } }
   .side { position:static; }
@@ -248,6 +250,11 @@
 
   <div class="layout">
   <div id="appRoot">
+  <div class="seg" role="tablist" aria-label="분석 메뉴" id="mainTabs" style="margin-bottom:16px">
+    <button id="mtMain" role="tab" class="on">📈 표준곡선 · 회수율 검증</button>
+    <button id="mtProbit" role="tab">🧬 Probit 분석 (LoD)</button>
+  </div>
+  <div id="panelMain">
   <details class="card guide" open>
     <summary>🧭 처음이세요? 이렇게 쓰시면 돼요</summary>
     <ol class="steps">
@@ -351,26 +358,9 @@
     </tbody></table></div>
   </section>
 
-  <section class="card" id="probitCard">
-    <div class="chead"><span class="step">6</span><h2>Probit 회귀 · LoD <span class="tag opt">선택</span></h2><span class="hint">농도별 검출(양성) 횟수로 <b>C05 · C50 · C95</b>(검출률이 5 · 50 · 95 %가 되는 농도)를 구해요. 위의 표준곡선·회수율과는 별개의 분석이에요.</span></div>
-    <p class="fx" style="margin:0 0 12px">probit(p) = a + b · log10(농도)  ·  C<sub>p</sub> = 10<sup>(z<sub>p</sub> − a) / b</sup>  (z<sub>p</sub> = Φ<sup>−1</sup>(p), C50 = 10<sup>−a/b</sup>, C95는 z = 1.645)  ·  신뢰구간 Fieller 방법</p>
-    <div class="row">
-      <label>농도 단위<input id="pbUnit" class="txt" type="text" value="copies/µL" placeholder="예: copies/µL"></label>
-      <button id="pbSample">🧪 샘플 불러오기</button>
-      <button id="pbAdd">➕ 농도 추가</button>
-      <button id="pbClear">🧹 비우기</button>
-    </div>
-    <div class="scroll"><table id="pb"><thead><tr><th>농도 <span id="pbU"></span> <span class="tag req">입력</span></th><th>log10</th><th>시행 수 n <span class="tag req">입력</span></th><th>양성 수 k <span class="tag req">입력</span></th><th>검출률</th></tr></thead><tbody></tbody></table></div>
-    <p class="note">농도 수준마다 <b>시행 수(n)</b>와 <b>양성 수(k)</b>를 넣어요. 검출률이 0%와 100% 사이인 농도가 3개 이상, 수준마다 10~25회 이상이면 좋아요. 엑셀에서 3열(농도·n·k)을 복사해 붙여넣을 수 있고, 농도 0은 로그를 취할 수 없어 제외돼요.</p>
-    <div id="pbMsgs"></div>
-    <div id="pbTiles" class="tiles" style="margin-top:12px"></div>
-    <div id="pbDetail" class="note"></div>
-    <div style="text-align:right;margin-top:8px"><button id="pbPng">🖼️ 그래프 PNG 저장</button></div>
-    <div id="pbPlot" class="pbplot"></div>
-  </section>
 
   <section class="card">
-    <div class="chead"><span class="step">7</span><h2>결과서 내보내기</h2><span class="hint"><b>표준서식</b>에 기관 정보와 계산값을 채워 HWPX로 만들어요. 결과서를 올렸다면 그 파일을 서식으로 써서 그림 등이 그대로 유지돼요.</span></div>
+    <div class="chead"><span class="step">6</span><h2>결과서 내보내기</h2><span class="hint"><b>표준서식</b>에 기관 정보와 계산값을 채워 HWPX로 만들어요. 결과서를 올렸다면 그 파일을 서식으로 써서 그림 등이 그대로 유지돼요.</span></div>
     <div class="row" style="margin-bottom:0">
       <button id="btnPreview">👀 미리보기</button>
       <button id="btnExport" class="primary">📥 HWPX로 내보내기</button>
@@ -387,6 +377,33 @@
       <button id="reset">↩︎ 기본값으로 되돌리기</button>
     </div>
   </details>
+  </div>
+  <div id="panelProbit" hidden>
+  <section class="card" id="probitCard">
+    <div class="chead"><h2>🧬 Probit 회귀 · LoD <span class="tag opt">선택</span></h2><span class="hint">농도별 검출(양성) 횟수로 <b>C05 · C50 · C95</b>(검출률 5 · 50 · 95 %가 되는 농도)를 구해요. 표준곡선·회수율 검증과는 별개의 분석이에요.</span></div>
+    <p class="fx" style="margin:0 0 12px">probit(p) = a + b · log10(농도)  ·  C<sub>p</sub> = 10<sup>(z<sub>p</sub> − a) / b</sup>  (z<sub>p</sub> = Φ<sup>−1</sup>(p), C50 = 10<sup>−a/b</sup>, C95는 z = 1.645)</p>
+    <div class="row">
+      <label>농도 단위<input id="pbUnit" class="txt" type="text" value="copies/µL" placeholder="예: copies/µL"></label>
+      <label>신뢰구간 방법<select id="pbCi" class="txt"><option value="fieller">Fieller (기본)</option><option value="profile">프로파일 우도</option></select></label>
+      <button id="pbSample">🧪 샘플 불러오기</button>
+      <button id="pbAdd">➕ 농도 추가</button>
+      <button id="pbClear">🧹 비우기</button>
+    </div>
+    <div class="scroll"><table id="pb"><thead><tr><th>농도 <span id="pbU"></span> <span class="tag req">입력</span></th><th>log10</th><th>시행 수 n <span class="tag req">입력</span></th><th>양성 수 k <span class="tag req">입력</span></th><th>검출률</th></tr></thead><tbody></tbody></table></div>
+    <p class="note">농도 수준마다 <b>시행 수(n)</b>와 <b>양성 수(k)</b>를 넣어요. 검출률이 0%와 100% 사이인 농도가 3개 이상, 수준마다 10~25회 이상이면 좋아요. 엑셀에서 3열(농도·n·k)을 복사해 붙여넣을 수 있고, 농도 0은 로그를 취할 수 없어 제외돼요.</p>
+    <div id="pbMsgs"></div>
+  </section>
+  <section class="card" id="pbResult" hidden>
+    <div class="chead"><h2>📈 Dose-Response 결과</h2><span class="hint">곡선의 하늘색 띠와 점선은 95% 신뢰구간이에요.</span></div>
+    <div id="pbTiles" class="tiles"></div>
+    <div id="pbDetail" class="note"></div>
+    <div style="text-align:right;margin:8px 0 0"><button id="pbPng">🖼️ 그래프 PNG 저장</button></div>
+    <div id="pbPlot" class="pbplot"></div>
+    <h3 style="margin:18px 0 8px;font-size:15px">Dose-Response table</h3>
+    <div class="scroll" id="pbTable"></div>
+    <div style="text-align:right;margin-top:8px"><button id="pbCopy">📋 표 복사</button> <button id="pbCsv">⬇️ CSV 저장</button></div>
+  </section>
+  </div>
   </div>
 
   <aside class="side" id="releases" aria-label="저장소 정보와 다운로드">

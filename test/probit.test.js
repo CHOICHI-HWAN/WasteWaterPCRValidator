@@ -86,3 +86,14 @@ const w = wilson(8, 25); assert.ok(w[0] < 0.32 && w[1] > 0.32 && w[0] > 0.15 && 
 const warn = probitFit([{ conc: 1, n: 5, k: 1 }, { conc: 10, n: 5, k: 3 }, { conc: 100, n: 5, k: 5 }]);
 assert.ok(!warn.ok || warn.warnings.length > 0, '자료가 부족하면 경고');
 console.log('probit ok', { a: +f1.a.toFixed(4), b: +f1.b.toFixed(4), C05: +f1.C05.c.toFixed(3), C50: +f1.C50.c.toFixed(3), C95: +f1.C95.c.toFixed(2), pDev: +f1.pDev.toFixed(3) });
+
+// --- v0.25: 프로파일 우도 구간, 신뢰 띠 ---
+{
+  const f = probitFit([{ conc: 1000, n: 25, k: 25 }, { conc: 100, n: 25, k: 22 }, { conc: 10, n: 25, k: 16 }, { conc: 1, n: 25, k: 6 }, { conc: 0.1, n: 25, k: 0 }].map((r) => r), { ci: 'profile' });
+  const g = probitFit([{ conc: 1000, n: 25, k: 25 }, { conc: 100, n: 25, k: 22 }, { conc: 10, n: 25, k: 16 }, { conc: 1, n: 25, k: 6 }, { conc: 0.1, n: 25, k: 0 }]);
+  const pf = f.cp(0.5), fl = g.cp(0.5);
+  assert.ok(pf.bounded && fl.bounded && pf.lo < pf.c && pf.c < pf.hi, 'profile CI brackets C50');
+  assert.ok(Math.abs(Math.log10(pf.lo / fl.lo)) < 0.15 && Math.abs(Math.log10(pf.hi / fl.hi)) < 0.15, 'profile ≈ Fieller');
+  const b = g.band(30).filter((x) => x.lo !== null);
+  assert.ok(b.length > 20 && b.every((x) => x.lo <= x.x && x.x <= x.hi), 'band brackets the curve');
+}

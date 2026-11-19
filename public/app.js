@@ -9,7 +9,7 @@ import { curvePng, drawStandardCurve } from './chart.js';
 import { buildWorkbook } from './xlsx-export.js';
 import { initSidePanel } from './releases.js';
 import { probitFit } from './probit.js';
-import { plotSvg, fmtC } from './probit-ui.js';
+import { plotSvg, fmtC, doseTable } from './probit-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 3) => (Number.isFinite(v) ? fixed(v, d) : '–');
@@ -619,7 +619,7 @@ function addPbRow(d = {}) {
   [['.pbc', d.conc], ['.pbn', d.n], ['.pbk', d.k]].forEach(([q, v]) => { tr.querySelector(q).value = Number.isFinite(v) ? String(v) : ''; });
 }
 function setPb(rows) { pbBody.innerHTML = ''; (rows?.length ? rows : Array.from({ length: 5 }, () => ({}))).forEach(addPbRow); }
-let pbLast = null;
+let pbLast = null, pbRows = [];
 function recalcPb() {
   const unit = $('pbUnit').value.trim();
   $('pbU').textContent = unit ? `(${unit})` : '';
@@ -633,9 +633,9 @@ function recalcPb() {
     tr.querySelector('.pbr').textContent = nums[1] > 0 && Number.isFinite(nums[2]) ? `${fixed(nums[2] / nums[1] * 100, 1)} %` : '';
     if (raw.some(Boolean)) rows.push({ conc: nums[0], n: nums[1], k: nums[2], rowNo: i + 1 });
   });
-  const msgs = [], clear = () => { $('pbTiles').innerHTML = ''; $('pbDetail').innerHTML = ''; $('pbPlot').innerHTML = ''; pbLast = null; };
+  const msgs = [], clear = () => { $('pbResult').hidden = true; $('pbTable').innerHTML = ''; $('pbTiles').innerHTML = ''; $('pbDetail').innerHTML = ''; $('pbPlot').innerHTML = ''; pbLast = null; };
   if (!rows.length) { $('pbMsgs').innerHTML = '<div class="note">자료를 입력하거나 <b>샘플 불러오기</b>를 눌러 보세요.</div>'; clear(); return; }
-  const fit = probitFit(rows);
+  const fit = probitFit(rows, { ci: $('pbCi').value });
   fit.dropped.forEach((d) => msgs.push(`<div class="pbwarn">${d.rowNo}행은 계산에서 제외했어요 — ${badRaw[d.rowNo] ?? d.reason}</div>`));
   if (!fit.ok) { msgs.push(`<div class="pberr">${fit.reason}</div>`); $('pbMsgs').innerHTML = msgs.join(''); clear(); return; }
   fit.warnings.forEach((w) => msgs.push(`<div class="pbwarn">⚠ ${w}</div>`));
@@ -646,7 +646,9 @@ function recalcPb() {
   const p3 = (p) => (p === null ? '–' : p < 0.001 ? '< 0.001' : fixed(p, 3));
   $('pbDetail').innerHTML = `probit(p) = <b>${fixed(fit.a, 3)}</b> + <b>${fixed(fit.b, 3)}</b> · log10(농도) &nbsp;·&nbsp; a SE ${fixed(fit.seA, 3)}, b SE ${fixed(fit.seB, 3)} (기울기 p ${p3(fit.pSlope)})<br>` +
     `적합도: 편차 ${fixed(fit.deviance, 2)} (자유도 ${fit.df}${fit.df > 0 ? `, p = ${p3(fit.pDev)}` : ''}), Pearson χ² ${fixed(fit.pearson, 2)}${fit.df > 0 ? ` (p = ${p3(fit.pPear)})` : ''} &nbsp;·&nbsp; 농도 수준 ${fit.used.length}개, 총 시행 ${fit.n}회, 반복 계산 ${fit.iter}회`;
+  $('pbResult').hidden = false;
   $('pbPlot').innerHTML = plotSvg(fit, unit);
+  const dt = doseTable(fit); $('pbTable').innerHTML = dt.html; pbRows = dt.rows;
   pbLast = fit;
 }
 async function pbPngSave() {
@@ -655,11 +657,24 @@ async function pbPngSave() {
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
   try {
     const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-    const c = document.createElement('canvas'); c.width = 1280; c.height = 720; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    const c = document.createElement('canvas'); c.width = 1440; c.height = 880; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
     saveBlob(await new Promise((res) => c.toBlob(res, 'image/png')), 'Probit_LoD.png');
   } finally { URL.revokeObjectURL(url); }
 }
 setPb();
+function showMenu(m) {
+  const pr = m === 'probit';
+  $('panelMain').hidden = pr; $('panelProbit').hidden = !pr;
+  $('mtMain').classList.toggle('on', !pr); $('mtProbit').classList.toggle('on', pr);
+  try { history.replaceState(null, '', pr ? '#probit' : location.pathname + location.search); } catch {}
+}
+$('mtMain').addEventListener('click', () => showMenu('main'));
+$('mtProbit').addEventListener('click', () => { showMenu('probit'); recalcPb(); });
+$('pbCi').addEventListener('change', recalc);
+const pbTsv = (sep) => ['Probability', 'Dose', '95% CI lower', '95% CI upper'].join(sep) + '\n' + pbRows.map(([p, c]) => [p.toFixed(3), c.c, c.bounded ? c.lo : '', c.bounded ? c.hi : ''].join(sep)).join('\n');
+$('pbCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(pbTsv('\t')); $('pbCopy').textContent = '✅ 복사됨'; setTimeout(() => { $('pbCopy').textContent = '📋 표 복사'; }, 1500); } catch { $('pbCopy').textContent = '복사 실패'; } });
+$('pbCsv').addEventListener('click', () => saveBlob(new Blob(['\ufeff' + pbTsv(',')], { type: 'text/csv;charset=utf-8' }), 'Probit_dose_response.csv'));
+if (location.hash === '#probit') showMenu('probit');
 
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {
@@ -806,7 +821,7 @@ if (!LOCAL) import("./firebase.js").catch(() => {});
 {
   const q = new URLSearchParams(location.search);
   if (q.get('demo')) {
-    $('sample').click(); setPb(PB_SAMPLE); recalc();
+    $('sample').click(); setPb(PB_SAMPLE); recalc(); if (location.hash === '#probit') showMenu('probit');
     if (q.get('view') === 'preview') setTimeout(() => $('btnPreview').click(), 300);
     if (q.get('view') === 'sheet') $('tabSheet').click();
   }

@@ -26,7 +26,7 @@ A browser tool that takes the Ct values of the BCoV standard curve and the extra
 4. **Recovery analysis.** Ct + spiked concentration -> measured concentration (copies/mL) and recovery (%), with mean, SD (population or sample) and RSD, using either the curve calculated above (default) or the one written on the form.
 5. **Formulas shown with the numbers filled in** (`-119.48 / 30`, `26.1613 - (-3.9827) x 4.1461`), so every value can be checked by hand; the switch in the header hides them.
 
-5b. **Probit regression / detection limit (LoD).** From the number of positives out of the replicates tested at each concentration, fits `probit(p) = a + b log10(conc)` by maximum likelihood and reports **C05, C50 and C95** (the concentrations with 5 %, 50 % and 95 % detection) with Fieller 95 % intervals, goodness of fit, a detection-rate curve and warnings (extrapolation, wide intervals, complete separation). Validated against an independent optimiser and a classic published data set.
+5b. **Probit regression / detection limit (LoD).** From the number of positives out of the replicates tested at each concentration, fits `probit(p) = a + b log10(conc)` by maximum likelihood and reports **C05, C50 and C95** (the concentrations with 5 %, 50 % and 95 % detection) with Fieller 95 % intervals, goodness of fit, a detection-rate curve and warnings (extrapolation, wide intervals, complete separation). Validated against an independent optimiser and a classic published data set. Shown in its own tab with a MedCalc-style dose-response plot (95 % band) and table.
 
 ### Result forms (HWPX)
 
