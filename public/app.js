@@ -666,6 +666,13 @@ function showMenu(m) {
   const pr = m === 'probit';
   $('panelMain').hidden = pr; $('panelProbit').hidden = !pr;
   $('mtMain').classList.toggle('on', !pr); $('mtProbit').classList.toggle('on', pr);
+  const BETA_MAIN = $('betaTxt').innerHTML;
+  showMenu.beta ??= BETA_MAIN; showMenu.title ??= [$('heroTitle').textContent, $('heroSub').textContent];
+  $('heroTitle').textContent = pr ? 'Probit 분석기' : showMenu.title[0];
+  $('heroSub').textContent = pr ? '농도별 검출(양성) 횟수만 넣으면 C05 · C50 · C95와 Dose-Response 그래프 · 표를 만들어 드려요.' : showMenu.title[1];
+  $('fxChip').style.display = pr ? 'none' : ''; $('betaChip').textContent = pr ? 'BETA · 검출한계(LoD) 분석' : 'BETA · 숙련도 평가 임시 사용'; $('footName').hidden = !pr;
+  $('betaTxt').innerHTML = pr ? '<b>베타 테스트 버전</b>입니다. 검출한계(LoD) 분석 결과는 통계 소프트웨어(예: MedCalc, R)와 <b>교차 확인</b>한 뒤 사용해 주세요. 신뢰구간 계산 방식에 따라 값이 다를 수 있어요.' : showMenu.beta;
+  document.title = pr ? 'Probit 분석기' : showMenu.title[0];
   try { history.replaceState(null, '', pr ? '#probit' : location.pathname + location.search); } catch {}
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));

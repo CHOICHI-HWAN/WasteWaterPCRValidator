@@ -233,12 +233,12 @@
         <svg width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M24 5C24 5 10 20.5 10 30a14 14 0 0028 0C38 20.5 24 5 24 5z" fill="#fff" fill-opacity=".92"/><path d="M17 31c0 3.9 3.1 7 7 7" stroke="#2f80ed" stroke-width="3" stroke-linecap="round"/></svg>
       </div>
       <div>
-        <h1>하수 PCR 검증기</h1>
-        <p>Ct 값만 넣으면 표준곡선 · 증폭효율 · 회수율을 한 번에 확인하고, 결과서(HWPX)까지 만들어 드려요.</p>
+        <h1 id="heroTitle">하수 PCR 검증기</h1>
+        <p id="heroSub">Ct 값만 넣으면 표준곡선 · 증폭효율 · 회수율을 한 번에 확인하고, 결과서(HWPX)까지 만들어 드려요.</p>
         <div class="chips">
-          <span class="chip beta">BETA · 숙련도 평가 임시 사용</span>
+          <span class="chip beta" id="betaChip">BETA · 숙련도 평가 임시 사용</span>
           <span class="chip">🔒 브라우저 안에서만 처리 · 서버에 저장되지 않아요</span>
-          <label class="chip sw"><input type="checkbox" id="fxToggle" checked> 계산식 보기</label>
+          <label class="chip sw" id="fxChip"><input type="checkbox" id="fxToggle" checked> 계산식 보기</label>
           <a class="chip" href="#releases" style="text-decoration:none;color:#fff">⬇ 다운로드 · Releases</a>
         </div>
       </div>
@@ -246,7 +246,7 @@
     <svg class="wave" viewBox="0 0 1440 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34V14C120 30 240 32 360 22S600 0 720 8s240 24 360 20 240-16 360-12v18z"/></svg>
   </header>
 
-  <div class="betabox" role="note"><span>⚠️</span><span><b>베타 테스트 버전</b>입니다. 숙련도 평가를 위한 <b>임시 사용</b> 목적이며, 계산 결과와 내보낸 결과서는 제출 전에 반드시 직접 검토·확인해 주세요.</span></div>
+  <div class="betabox" role="note"><span>⚠️</span><span id="betaTxt"><b>베타 테스트 버전</b>입니다. 숙련도 평가를 위한 <b>임시 사용</b> 목적이며, 계산 결과와 내보낸 결과서는 제출 전에 반드시 직접 검토·확인해 주세요.</span></div>
 
   <div class="layout">
   <div id="appRoot">
@@ -461,7 +461,7 @@
   </dialog>
 
   <footer class="foot">
-    <span>제작: 치치박사&amp;박박사</span> · <span id="ver"></span> <span class="betatag">BETA</span> · <span>GPL v3</span><br>
+    <span id="footName" hidden>Probit 분석 (LoD) — 농도별 검출률 · C05 / C50 / C95</span><span id="footBy">제작: 치치박사&amp;박박사</span> · <span id="ver"></span> <span class="betatag">BETA</span> · <span>GPL v3</span><br>
     <a href="#" id="aboutOpen">정보 · 서드파티 · 변경 이력</a> ·
     <a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub</a>
   </footer>
