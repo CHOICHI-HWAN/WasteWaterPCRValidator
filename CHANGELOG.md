@@ -2,6 +2,10 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를, 버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다.
 
+## [0.32.0] - 2026-11-27
+### 변경
+- 7500FAST **시료 × 검출기 요약을 스프레드시트 형식으로**: 열 글자(A, B, C…)와 행 번호, 표적별 **AVERAGE · STDEV.S · 검출 of 반복** 열. 칸을 누르면 수식(`=AVERAGE(…)`)과 웰이 보이고, 드래그해 선택한 뒤 Ctrl+C(또는 복사 버튼)로 엑셀에 숫자로 붙여넣을 수 있어요. 결과서의 요약표도 같은 열로 바꿈.
+
 ## [0.31.0] - 2026-11-27
 ### 변경
 - **프로그램 이름: Park&Choi Heavenly Lab(LabPhobia)**.

@@ -177,6 +177,13 @@
   body.edstheme .step, body.edstheme button.primary { box-shadow:0 3px 8px rgba(217,72,15,.35); }
   .dlitem[hidden] { display:none !important; }
   .paper table.apv th, .paper table.apv td { font-size:11px; }
+  .fxbar { flex:1 1 320px; font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--card); min-height:20px; word-break:break-all; }
+  table.sheet { border-collapse:collapse; width:max-content; min-width:100%; font-size:13px; font-variant-numeric:tabular-nums; user-select:none; -webkit-user-select:none; outline:none; }
+  table.sheet th, table.sheet td { border:1px solid var(--line); padding:4px 12px; min-width:76px; background:var(--card); border-radius:0; }
+  table.sheet .corner, table.sheet .ch, table.sheet .rh { background:color-mix(in srgb, var(--line) 55%, var(--card)); color:var(--mut); font-weight:600; font-size:11.5px; text-align:center; min-width:34px; padding:3px 8px; }
+  table.sheet .hd { font-weight:800; text-align:center; background:var(--accsoft); } table.sheet .hd.sub { font-size:11.5px; }
+  table.sheet td.n { text-align:right; } table.sheet td.l { font-weight:700; background:color-mix(in srgb, var(--accsoft) 45%, var(--card)); } table.sheet td.nd { text-align:right; color:var(--mut); font-style:italic; }
+  table.sheet td[data-r] { cursor:cell; } table.sheet td.on { background:color-mix(in srgb, var(--acc) 22%, var(--card)); outline:1px solid var(--acc); outline-offset:-1px; }
   .edsgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px 18px; } .edsgrid div { display:flex; flex-direction:column; } .edsgrid span { color:var(--mut); font-size:12px; font-weight:700; } .edsgrid b { font-size:14px; word-break:break-all; }
   .edsh { margin:16px 0 8px; font-size:13px; color:var(--mut); }
   .edschips { display:flex; flex-wrap:wrap; gap:8px; } .edschip { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border-radius:99px; } .edschip i { width:12px; height:12px; border-radius:50%; display:inline-block; } .edschip.off { opacity:.4; } .edschip small { color:var(--mut); }
@@ -483,9 +490,10 @@
       <p class="fx">ΔRn = Rn − 베이스라인 &nbsp;(Rn = 리포터 형광 ÷ 참조 형광)<br>Ct = ΔRn이 임계값 T를 처음 넘는 사이클<br>임계값을 직접 바꾸면: Ct = n + (ln T − ln ΔRn<sub>n</sub>) ÷ (ln ΔRn<sub>n+1</sub> − ln ΔRn<sub>n</sub>) &nbsp;(n = T 바로 아래 사이클)</p>
     </section>
     <section class="card">
-      <div class="chead"><h2>🧮 시료 × 검출기 요약</h2><span class="hint">검출된 반복의 평균 Ct (양성 수/반복 수). ND = Undetermined</span></div>
-      <div class="scroll" id="edsPivot"></div>
-      <p class="fx">평균 Ct = ΣCt ÷ n &nbsp;·&nbsp; SD = √( Σ(Ct − 평균)² ÷ (n − 1) ) &nbsp;(검출된 반복만, 표본 표준편차)</p>
+      <div class="chead"><h2>🧮 시료 × 검출기 요약</h2><span class="hint">스프레드시트처럼 보여요 · 칸을 드래그해 선택하고 Ctrl+C 로 복사 · AVERAGE = 검출된 반복 Ct의 평균 (ND = Undetermined)</span></div>
+      <div class="row" style="margin:0 0 8px"><button id="edsSheetCopy" type="button">📋 복사</button><span class="fxbar" id="edsSheetFx"></span></div>
+      <div class="scroll" id="edsPivot" tabindex="0"></div>
+      <p class="fx">AVERAGE = ΣCt ÷ n &nbsp;·&nbsp; STDEV.S = √( Σ(Ct − AVERAGE)² ÷ (n − 1) ) &nbsp;(검출된 반복만, 엑셀의 AVERAGE · STDEV.S 와 같은 식)</p>
     </section>
     <details class="card fold">
       <summary><span class="step" style="background:linear-gradient(135deg,#8aa4af,#5f7a86);box-shadow:none">?</span>용어 설명 — 결과를 읽는 법</summary>

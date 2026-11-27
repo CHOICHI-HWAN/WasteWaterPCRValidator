@@ -56,12 +56,12 @@ export function buildModel(data, o) {
   B.push({ t: 'table', head: ['Well', 'Sample', ...tg.map((d) => `${d.name} (${d.reporter})`)], rows: wellRows, widths: [1.2, 2, ...tg.map(() => 2)] });
   B.push({ t: 'fx', lines: ['Undetermined = 40 사이클 안에 임계값을 넘지 못함 (Ct 40.0)'] });
 
-  B.push({ t: 'h', text: '7. 시료 × 표적 요약 (평균 Ct)' });
+  B.push({ t: 'h', text: '7. 시료 × 표적 요약 (AVERAGE of Ct)' });
   const sm = new Map();
   for (const r of data.reads) { const k = r.sample + '\u0000' + r.target, x = sm.get(k) ?? { n: 0, v: [] }; x.n++; if (r.detected) x.v.push(r.ct); sm.set(k, x); }
   const names = [...new Set(data.reads.map((r) => r.sample))];
-  B.push({ t: 'table', head: ['Sample', ...tg.map((d) => d.name)], rows: names.map((s) => [s, ...tg.map((d) => { const x = sm.get(s + '\u0000' + d.name); if (!x) return ''; if (!x.v.length) return `ND (0/${x.n})`; const m = x.v.reduce((a, b) => a + b, 0) / x.v.length, sd = x.v.length > 1 ? Math.sqrt(x.v.reduce((a, b) => a + (b - m) ** 2, 0) / (x.v.length - 1)) : null; return `${f2(m)}${sd !== null ? ` ± ${f2(sd)}` : ''} (${x.v.length}/${x.n})`; })]), widths: [2, ...tg.map(() => 2.4)] });
-  B.push({ t: 'fx', lines: ['평균 Ct = ΣCt ÷ n,   SD = √( Σ(Ct − 평균)² ÷ (n − 1) )   (검출된 반복만, 표본 표준편차) ·  (검출 수/반복 수)'] });
+  B.push({ t: 'table', head: ['Sample', ...tg.flatMap((d) => [`${d.name} AVERAGE`, `${d.name} STDEV.S`, `${d.name} 검출 of 반복`])], rows: names.map((s) => [s, ...tg.flatMap((d) => { const x = sm.get(s + '\u0000' + d.name); if (!x) return ['', '', '']; if (!x.v.length) return ['ND', '', `0 of ${x.n}`]; const m = x.v.reduce((a, b) => a + b, 0) / x.v.length, sd = x.v.length > 1 ? Math.sqrt(x.v.reduce((a, b) => a + (b - m) ** 2, 0) / (x.v.length - 1)) : null; return [f2(m), sd !== null ? f2(sd) : '', `${x.v.length} of ${x.n}`]; })]), widths: [2, ...tg.flatMap(() => [1.6, 1.6, 1.5])], small: tg.length > 2 });
+  B.push({ t: 'fx', lines: ['AVERAGE = ΣCt ÷ n,   STDEV.S = √( Σ(Ct − AVERAGE)² ÷ (n − 1) )   (검출된 반복만, 엑셀의 AVERAGE · STDEV.S 와 같음) ·  검출 of 반복 = 검출 수 of 반복 수'] });
 
   let sec = 8;
   if (o.withStd && o.curves?.length) { // 보고서의 "표준곡선 정량"은 일단 뺌 (o.withStd 로 다시 켤 수 있음)

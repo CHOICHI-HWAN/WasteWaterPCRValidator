@@ -29,7 +29,7 @@ export function initEds({ $, saveBlob }) {
       fileName = file.name; S.sel.clear(); S.hidden.clear(); S.q = ''; S.tgt = ''; S.thr = {}; S.user = new Set(); S.flt = {}; S.sortCol = null;
       msg.textContent = `${file.name} · ${(file.size / 1024).toFixed(0)} KB — 이 컴퓨터의 브라우저 안에서만 읽었어요 (서버로 올라가지 않아요).`;
       $('edsBody').hidden = false; renderAll();
-    } catch (e) { data = null; $('edsBody').hidden = true; msg.className = 'pberr'; msg.textContent = e.message || String(e); }
+    } catch (e) { data = null; $('edsBody').hidden = true; msg.className = 'pberr'; msg.textContent = e.message || String(e); console.error(e.stack); }
   }
   const input = $('edsFile'), drop = $('edsDrop');
   input.addEventListener('change', () => { if (input.files[0]) load(input.files[0]); input.value = ''; });
@@ -213,13 +213,59 @@ export function initEds({ $, saveBlob }) {
     $('edsFltClear').hidden = !Object.values(S.flt).some((v) => v.trim()) && S.sortCol === null;
     $('edsVal').disabled = S.view === 'list';
   }
-  function renderPivot() {
-    const sm = summarize(data), samples = data.samples.map((s) => s.name).filter((n) => sm.some((x) => x.sample === n)), tg = data.detectors.map((d) => d.name).filter((n) => sm.some((x) => x.target === n));
-    const get = (s, t) => sm.find((x) => x.sample === s && x.target === t);
-    $('edsPivot').innerHTML = '<table class="drt"><thead><tr><th>Sample</th>' + tg.map((t) => `<th><i class="ld" style="background:${col(t)}"></i>${esc(t)}</th>`).join('') + '</tr></thead><tbody>' +
-      samples.map((s) => `<tr><td style="text-align:left;font-weight:700">${esc(s)}</td>` + tg.map((t) => { const x = get(s, t); return !x ? '<td></td>' : x.pos ? `<td title="${x.wells.join(', ')}">${f2(x.mean)} <small>(${x.pos}/${x.n})</small></td>` : `<td class="und" title="${x.wells.join(', ')}">ND <small>(0/${x.n})</small></td>`; }).join('') + '</tr>').join('') + '</tbody></table>';
+  // ---- 시료 × 검출기 요약: 읽기 전용 스프레드시트 (드래그 선택 · Ctrl+C / 복사 버튼으로 탭 구분 텍스트 복사) ----
+  const colName = (i) => { let s = ''; for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
+  let sheet = null, sel = null, sdrag = null;
+  function sheetModel() {
+    const sm = summarize(data), tg = data.detectors.map((d) => d.name).filter((n) => sm.some((x) => x.target === n));
+    const samples = data.samples.map((s) => s.name).filter((n) => sm.some((x) => x.sample === n));
+    const head1 = ['Sample'], head2 = [''];
+    for (const n of tg) head1.push(n, '', ''), head2.push('AVERAGE', 'STDEV.S', '검출 of 반복');
+    const rows = samples.map((s) => {
+      const cells = [{ v: s, text: s, f: null }];
+      for (const n of tg) {
+        const x = sm.find((o) => o.sample === s && o.target === n);
+        const rs = data.reads.filter((r) => r.sample === s && r.target === n && r.detected), v = rs.map((r) => r.ct), wells = (x?.wells ?? []).join(', ');
+        if (!x) { cells.push({ v: null, text: '' }, { v: null, text: '' }, { v: null, text: '' }); continue; }
+        const mean = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, sd = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / (v.length - 1)) : null;
+        const list = v.map((c) => f2(c)).join(', ');
+        cells.push(
+          { v: mean, text: mean === null ? 'ND' : f2(mean), num: mean !== null, f: mean === null ? `=AVERAGE()  → 검출된 반복이 없어요 (Undetermined)  · 웰 ${wells}` : `=AVERAGE(${list})  = ${mean.toFixed(4)}  · 웰 ${wells}` },
+          { v: sd, text: sd === null ? '' : f2(sd), num: sd !== null, f: sd === null ? '=STDEV.S()  → 검출된 반복이 2개 미만이라 계산할 수 없어요' : `=STDEV.S(${list})  = ${sd.toFixed(4)}` },
+          { v: null, text: `${x.pos} of ${x.n}`, f: `=COUNT(${list})  → 검출 ${x.pos}개 / 반복 ${x.n}개  · 웰 ${wells}` });
+      }
+      return cells;
+    });
+    return { head1, head2, rows, tg };
   }
-
+  function renderPivot() {
+    sheet = sheetModel(); const m = sheet, ncol = m.head1.length;
+    let h = '<table class="sheet"><thead><tr><th class="corner"></th>' + Array.from({ length: ncol }, (_, i) => `<th class="ch">${colName(i)}</th>`).join('') + '</tr>';
+    h += '<tr><th class="rh">1</th>' + m.head1.map((x, i) => (i === 0 ? '<th class="hd">Sample</th>' : (i - 1) % 3 === 0 ? `<th class="hd tgt" colspan="3">${esc(x)}</th>` : '')).join('') + '</tr>';
+    h += '<tr><th class="rh">2</th>' + m.head2.map((x) => `<th class="hd sub">${esc(x)}</th>`).join('') + '</tr></thead><tbody>';
+    m.rows.forEach((r, ri) => { h += `<tr><th class="rh">${ri + 3}</th>` + r.map((c, ci) => `<td data-r="${ri}" data-c="${ci}" class="${c.num ? 'n' : ci === 0 ? 'l' : c.text === 'ND' ? 'nd' : ''}">${esc(c.text)}</td>`).join('') + '</tr>'; });
+    $('edsPivot').innerHTML = h + '</tbody></table>'; sel = null; $('edsSheetFx').textContent = '셀을 누르거나 드래그해 선택하세요. Ctrl+C 로 복사해 엑셀에 붙여넣을 수 있어요.';
+  }
+  const paintSel = () => { const q = sel && { r0: Math.min(sel.a.r, sel.b.r), r1: Math.max(sel.a.r, sel.b.r), c0: Math.min(sel.a.c, sel.b.c), c1: Math.max(sel.a.c, sel.b.c) }; $('edsPivot').querySelectorAll('td[data-r]').forEach((td) => { const r = +td.dataset.r, c = +td.dataset.c; td.classList.toggle('on', !!q && r >= q.r0 && r <= q.r1 && c >= q.c0 && c <= q.c1); }); return q; };
+  const sheetCell = (e) => e.target.closest?.('td[data-r]');
+  $('edsPivot').addEventListener('mousedown', (e) => {
+    const td = sheetCell(e); if (!td || e.button !== 0) return; e.preventDefault();
+    sdrag = true; sel = { a: { r: +td.dataset.r, c: +td.dataset.c }, b: { r: +td.dataset.r, c: +td.dataset.c } }; paintSel();
+    const c = sheet.rows[sel.a.r][sel.a.c]; $('edsSheetFx').textContent = `${colName(sel.a.c)}${sel.a.r + 3}   ${c.f ?? (c.text ? c.text : '')}`;
+    $('edsPivot').focus();
+  });
+  $('edsPivot').addEventListener('mouseover', (e) => { if (!sdrag) return; const td = sheetCell(e); if (!td) return; sel.b = { r: +td.dataset.r, c: +td.dataset.c }; const q = paintSel(); const n = (q.r1 - q.r0 + 1) * (q.c1 - q.c0 + 1); if (n > 1) $('edsSheetFx').textContent = `${colName(q.c0)}${q.r0 + 3}:${colName(q.c1)}${q.r1 + 3}  (${n}칸 선택) — Ctrl+C 로 복사`; });
+  window.addEventListener('mouseup', () => { sdrag = false; });
+  const sheetTsv = (all) => {
+    const q = !all && sel ? { r0: Math.min(sel.a.r, sel.b.r), r1: Math.max(sel.a.r, sel.b.r), c0: Math.min(sel.a.c, sel.b.c), c1: Math.max(sel.a.c, sel.b.c) } : null;
+    const v = (c) => (c.v === null || c.v === undefined ? (c.text ?? '') : typeof c.v === 'number' ? String(+c.v.toFixed(6)) : c.v);
+    const rows = [];
+    if (!q) { rows.push(sheet.head1.join('\t')); rows.push(sheet.head2.join('\t')); }
+    sheet.rows.forEach((r, ri) => { if (q && (ri < q.r0 || ri > q.r1)) return; rows.push(r.filter((_, ci) => !q || (ci >= q.c0 && ci <= q.c1)).map(v).join('\t')); });
+    return rows.join('\n');
+  };
+  $('edsPivot').addEventListener('copy', (e) => { if (!sheet || !sel) return; e.preventDefault(); e.clipboardData.setData('text/plain', sheetTsv(false)); });
+  $('edsSheetCopy').addEventListener('click', async () => { if (!sheet) return; try { await navigator.clipboard.writeText(sheetTsv(!sel)); $('edsSheetCopy').textContent = '✅ 복사됨'; setTimeout(() => { $('edsSheetCopy').textContent = '📋 복사'; }, 1500); } catch { $('edsSheetCopy').textContent = '복사 실패'; } });
   function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
   function rerender() { S.user = applyThresholds(data, S.thr); renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); }
   function refreshSel() { renderPlate(); renderPlot(); renderTable(); $('edsSel').textContent = S.sel.size ? `선택 ${S.sel.size}건` : ''; }
