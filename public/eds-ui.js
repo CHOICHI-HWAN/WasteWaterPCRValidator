@@ -12,7 +12,7 @@ const dur = (a, b) => { if (!a || !b || b < a) return ''; const m = Math.round((
 
 export function initEds({ $, saveBlob }) {
   let data = null, fileName = '';
-  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '', view: 'wide', val: 'ct' };
+  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '', view: 'wide', val: 'ct', flt: {}, sortCol: null, sortDir: 'asc' };
   const col = (t) => PALETTE[Math.max(0, data.detectors.findIndex((d) => d.name === t)) % PALETTE.length];
 
   // ---------- 파일 읽기 ----------
@@ -139,11 +139,11 @@ export function initEds({ $, saveBlob }) {
     return data.reads.filter((r) => (!S.tgt || r.target === S.tgt) && (!q || `${r.well} ${r.sample} ${r.target}`.toLowerCase().includes(q)));
   }
   // 결과표 모델: { head: [{html,text}], rows: [{keys:[...], cells:[{html,text}]}] } — 화면과 CSV가 같은 모델을 쓴다
-  const cell = (html, text = html) => ({ html, text: String(text ?? '') });
+  const cell = (html, text = html, n = null) => ({ html, text: String(text ?? ''), n: Number.isFinite(n) ? n : null });
   const valOf = (r) => {
     const v = S.val === 'mean' ? r.ctMean : S.val === 'sd' ? r.ctSd : r.ct;
     if (!r.detected) return cell('<span class="und">Undetermined</span>', 'Undetermined');
-    return v === null || v === undefined ? cell('', '') : cell(f2(v), v);
+    return v === null || v === undefined ? cell('', '') : cell(f2(v), v, v);
   };
   function tableModel() {
     const rs = visibleTable();
@@ -152,7 +152,7 @@ export function initEds({ $, saveBlob }) {
       return { head, rows: rs.map((r) => {
         const rep = data.detectors.find((d) => d.name === r.target)?.reporter ?? '';
         return { keys: [key(r)], cells: [cell(r.well), cell(esc(r.sample), r.sample), cell(`<i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}`, r.target), cell(esc(rep), rep), cell(esc(r.task), r.task),
-          r.detected ? cell(f2(r.ct), r.ct) : cell('<span class="und">Undetermined</span>', 'Undetermined'), cell(r.detected ? f2(r.ctMean) : '', r.detected ? r.ctMean : ''), cell(r.detected ? f2(r.ctSd) : '', r.detected ? r.ctSd : '')] };
+          r.detected ? cell(f2(r.ct), r.ct, r.ct) : cell('<span class="und">Undetermined</span>', 'Undetermined'), cell(r.detected ? f2(r.ctMean) : '', r.detected ? r.ctMean : '', r.detected ? r.ctMean : null), cell(r.detected ? f2(r.ctSd) : '', r.detected ? r.ctSd : '', r.detected ? r.ctSd : null)] };
       }) };
     }
     // 웰 × 표적: 표적을 열로
@@ -163,16 +163,49 @@ export function initEds({ $, saveBlob }) {
     const rows = [...byWell.entries()].sort((x, y) => x[0] - y[0]).map(([, g]) => ({ keys: g.map(key), cells: [cell(g[0].well), cell(esc(g[0].sample), g[0].sample), ...tg.map((n) => { const r = g.find((x) => x.target === n); return r ? valOf(r) : cell('', ''); })] }));
     return { head, rows };
   }
+  // 열 필터: 글자 포함, 숫자 열은 >30  <=20  =17.06  20-30 같은 식도 허용. 정렬: 숫자는 숫자로, 글자는 자연 순서로, 빈 칸은 맨 뒤
+  const numTest = (s) => {
+    const m = /^(>=|<=|>|<|=)?\s*(-?\d+(?:\.\d+)?)$/.exec(s), r = /^(-?\d+(?:\.\d+)?)\s*[-~]\s*(-?\d+(?:\.\d+)?)$/.exec(s);
+    if (r) { const a = Math.min(+r[1], +r[2]), b = Math.max(+r[1], +r[2]); return (n) => n >= a && n <= b; }
+    if (!m) return null;
+    const v = +m[2]; return { '>': (n) => n > v, '<': (n) => n < v, '>=': (n) => n >= v, '<=': (n) => n <= v, '=': (n) => n === v, undefined: (n) => n === v }[m[1]];
+  };
+  function applyColumnOps(m) {
+    const idx = (k) => m.head.findIndex((h) => h.text === k);
+    let rows = m.rows;
+    for (const [k, q0] of Object.entries(S.flt)) {
+      const i = idx(k), q = q0.trim().toLowerCase(); if (i < 0 || !q) continue;
+      const nt = numTest(q);
+      rows = rows.filter((r) => { const c = r.cells[i]; return nt && c.n !== null ? nt(c.n) : c.text.toLowerCase().includes(q); });
+    }
+    const si = S.sortCol === null ? -1 : idx(S.sortCol);
+    if (si >= 0) {
+      const dir = S.sortDir === 'desc' ? -1 : 1;
+      rows = rows.slice().sort((a, b) => {
+        const x = a.cells[si], y = b.cells[si], ex = x.text === '', ey = y.text === '';
+        if (ex !== ey) return ex ? 1 : -1;
+        if (x.n !== null && y.n !== null) return (x.n - y.n) * dir;
+        if ((x.n === null) !== (y.n === null)) return x.n === null ? 1 : -1; // Undetermined 는 숫자 뒤
+        return x.text.localeCompare(y.text, 'en', { numeric: true }) * dir;
+      });
+    }
+    return { head: m.head, rows };
+  }
   function renderTable() {
-    const m = tableModel(), on = (keys) => keys.some((k) => S.sel.has(k));
+    const m = applyColumnOps(tableModel()), on = (keys) => keys.some((k) => S.sel.has(k));
+    const act = document.activeElement?.dataset?.flt, caret = act !== undefined ? document.activeElement.selectionStart : null;
+    const ctl = (h) => `<span class="srt" data-sort="${esc(h.text)}" title="눌러서 정렬 (오름 → 내림 → 해제)">${h.html}<b class="arw">${S.sortCol === h.text ? (S.sortDir === 'desc' ? '▼' : '▲') : '⇅'}</b></span>`;
+    const flt = (h) => `<input class="flt" data-flt="${esc(h.text)}" value="${esc(S.flt[h.text] ?? '')}" placeholder="필터" title="글자 포함 · 숫자 열은 >30, <=20, 20-30 도 돼요">`;
     const dk = (keys) => `data-k="${keys.join(';')}"`;
     if (!S.tr) {
-      $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr>' + m.head.map((c) => `<th>${c.html}</th>`).join('') + '</tr></thead><tbody>' +
+      $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr>' + m.head.map((c) => `<th>${ctl(c)}</th>`).join('') + '</tr><tr class="fr">' + m.head.map((c) => `<th>${flt(c)}</th>`).join('') + '</tr></thead><tbody>' +
         m.rows.map((r) => `<tr ${dk(r.keys)} class="${on(r.keys) ? 'key' : ''}">` + r.cells.map((c) => `<td>${c.html}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
     } else {
-      $('edsTable').innerHTML = '<table class="drt edsres edstr"><tbody>' + m.head.map((h, i) => `<tr><th>${h.html}</th>` + m.rows.map((r) => `<td ${dk(r.keys)} class="${on(r.keys) ? 'sel' : ''}">${r.cells[i].html}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+      $('edsTable').innerHTML = '<table class="drt edsres edstr"><tbody>' + m.head.map((h, i) => `<tr><th>${ctl(h)}${flt(h)}</th>` + m.rows.map((r) => `<td ${dk(r.keys)} class="${on(r.keys) ? 'sel' : ''}">${r.cells[i].html}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
     }
     $('edsCount').textContent = S.view === 'list' ? `${m.rows.length} / ${data.reads.length}건` : `${m.rows.length}웰`;
+    if (act !== undefined) { const el = [...$('edsTable').querySelectorAll('input[data-flt]')].find((x) => x.dataset.flt === act); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch {} } }
+    $('edsFltClear').hidden = !Object.values(S.flt).some((v) => v.trim()) && S.sortCol === null;
     $('edsVal').disabled = S.view === 'list';
   }
   function renderPivot() {
@@ -243,7 +276,7 @@ export function initEds({ $, saveBlob }) {
     else { S.sel.clear(); hit.forEach((r) => S.sel.add(key(r))); }
     drag = null; refreshSel();
   });
-  $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('[data-k]'); if (!tr) return; const ks = tr.dataset.k.split(';'), all = ks.every((k) => S.sel.has(k)); ks.forEach((k) => (all ? S.sel.delete(k) : S.sel.add(k))); refreshSel(); });
+  $('edsTable').addEventListener('click', (e) => { if (e.target.closest('input,[data-sort]')) return; const tr = e.target.closest('[data-k]'); if (!tr) return; const ks = tr.dataset.k.split(';'), all = ks.every((k) => S.sel.has(k)); ks.forEach((k) => (all ? S.sel.delete(k) : S.sel.add(k))); refreshSel(); });
   $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
   $('edsSig').addEventListener('change', () => { S.sig = $('edsSig').value; renderPlot(); });
   $('edsLog').addEventListener('change', () => { S.log = $('edsLog').checked; renderPlot(); });
@@ -252,13 +285,21 @@ export function initEds({ $, saveBlob }) {
   $('edsYmin').addEventListener('input', yIn); $('edsYmax').addEventListener('input', yIn);
   $('edsYauto').addEventListener('click', () => { $('edsYmin').value = ''; $('edsYmax').value = ''; yIn(); });
   $('edsClearSel').addEventListener('click', () => { S.sel.clear(); refreshSel(); });
-  $('edsView').addEventListener('change', () => { S.view = $('edsView').value; renderTable(); });
+  $('edsTable').addEventListener('input', (e) => { const i = e.target.closest('input[data-flt]'); if (!i) return; S.flt[i.dataset.flt] = i.value; renderTable(); });
+  $('edsTable').addEventListener('click', (e) => {
+    const s = e.target.closest('[data-sort]'); if (!s) return; e.stopPropagation();
+    const k = s.dataset.sort;
+    if (S.sortCol !== k) { S.sortCol = k; S.sortDir = 'asc'; } else if (S.sortDir === 'asc') S.sortDir = 'desc'; else { S.sortCol = null; S.sortDir = 'asc'; }
+    renderTable();
+  }, true);
+  $('edsFltClear').addEventListener('click', () => { S.flt = {}; S.sortCol = null; renderTable(); });
+  $('edsView').addEventListener('change', () => { S.view = $('edsView').value; S.flt = {}; S.sortCol = null; renderTable(); });
   $('edsVal').addEventListener('change', () => { S.val = $('edsVal').value; renderTable(); });
   $('edsTr').addEventListener('change', () => { S.tr = $('edsTr').checked; renderTable(); });
   $('edsQ').addEventListener('input', () => { S.q = $('edsQ').value; renderTable(); });
   $('edsTgt').addEventListener('change', () => { S.tgt = $('edsTgt').value; renderTable(); });
   $('edsCsv').addEventListener('click', () => {
-    const m = tableModel();
+    const m = applyColumnOps(tableModel());
     let rows = [m.head.map((c) => c.text)].concat(m.rows.map((r) => r.cells.map((c) => c.text)));
     if (S.tr) rows = rows[0].map((_, i) => rows.map((r) => r[i]));
     saveBlob(new Blob(['\ufeff' + rows.map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_results.csv');
