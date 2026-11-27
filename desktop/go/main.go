@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 //
-// 하수 PCR 검증기 — 데스크톱 실행기 (아주 작은 단일 exe).
+// HeavelyLab(LabPhobia) — 데스크톱 실행기 (아주 작은 단일 exe).
 // 앱 파일(압축)을 실행 파일 안에 넣어 두고, 이 PC(127.0.0.1)에서만 접속되는 작은 서버로 열어 기본 브라우저로 띄운다.
 // 입력한 데이터·업로드한 파일은 이 PC 밖으로 나가지 않는다(인터넷 연결 불필요).
 // 실행 파일을 작게 유지하려고 net/http, fmt 없이 표준 라이브러리의 net/bufio만 사용한다.
@@ -293,7 +293,7 @@ func main() {
 		os.Exit(1)
 	}
 	url := "http://127.0.0.1:" + strconv.Itoa(port) + "/"
-	os.Stdout.WriteString("하수 PCR 검증기 " + version + " (베타 · 숙련도 평가용 임시 사용)\n제작: 치치박사&박박사 · GPL v3\n주소: " + url + "\n입력한 데이터와 파일은 이 PC 밖으로 나가지 않습니다. 브라우저 탭을 닫으면 자동 종료됩니다.\n")
+	os.Stdout.WriteString("HeavelyLab(LabPhobia) " + version + " (베타 · 숙련도 평가용 임시 사용)\n제작: 치치박사&박박사 · GPL v3\n주소: " + url + "\n입력한 데이터와 파일은 이 PC 밖으로 나가지 않습니다. 브라우저 탭을 닫으면 자동 종료됩니다.\n")
 	go watchdog()
 	if os.Getenv("WWPCR_NO_OPEN") != "1" {
 		if !openBrowser(url) {

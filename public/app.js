@@ -521,7 +521,9 @@ function cell(newS, old, flag, attrs = '') {
   return `<td class="chg" ${attrs}><del>${old.toLocaleString('en-US', { maximumFractionDigits: 3 })}</del> <b>${v}</b></td>`;
 }
 
+let pvMode = 'lin';
 async function renderPreview() {
+  pvMode = 'lin'; $('pvDiff').closest('label').hidden = false;
   try { await ensureTemplate(); } catch (e) { $('pvNote').textContent = e.message; }
   const ex = computeExport(), f = formatForForm(ex), fl = computeFlags(ex), rv = reportedValues(ex);
   const diff = $('pvDiff').checked;
@@ -605,7 +607,7 @@ async function downloadPng() {
     const c = out.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, out.width, out.height);
     let y = gap; cvs.forEach((cv) => { c.drawImage(cv, gap + (W - cv.width) / 2, y); y += cv.height + gap; });
     const blob = await new Promise((res, rej) => out.toBlob((b) => (b ? res(b) : rej(new Error('이미지 생성 실패'))), 'image/png'));
-    saveBlob(blob, 'BCoV_숙련도평가_결과서.png');
+    saveBlob(blob, pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.png` : 'BCoV_숙련도평가_결과서.png');
   } catch (e) { $('pvNote').textContent = 'PNG 저장 실패: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = old; }
 }
@@ -683,7 +685,7 @@ function showMenu(m) {
   $('fxChip').style.display = cfg.fx ? '' : 'none'; $('betaChip').textContent = cfg.chip;
   $('footName').hidden = m === 'main'; if (cfg.foot) $('footName').textContent = cfg.foot;
   $('betaTxt').innerHTML = cfg.beta ?? B.beta; $('aboutTxt').innerHTML = cfg.about ?? B.about; $('aboutBeta').textContent = cfg.abeta ?? B.abeta;
-  $('themeColor').content = cfg.color; document.title = cfg.doc ?? B.title[0];
+  $('themeColor').content = cfg.color; document.title = (cfg.doc ?? B.title[0]) + ' · HeavelyLab(LabPhobia)';
   try { history.replaceState(null, '', cfg.hash || location.pathname + location.search); } catch {}
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));
@@ -694,7 +696,23 @@ const pbTsv = (sep) => ['Probability', 'Dose', '95% CI lower', '95% CI upper'].j
 $('pbCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(pbTsv('\t')); $('pbCopy').textContent = '✅ 복사됨'; setTimeout(() => { $('pbCopy').textContent = '📋 표 복사'; }, 1500); } catch { $('pbCopy').textContent = '복사 실패'; } });
 $('pbCsv').addEventListener('click', () => saveBlob(new Blob(['\ufeff' + pbTsv(',')], { type: 'text/csv;charset=utf-8' }), 'Probit_dose_response.csv'));
 if (location.hash === '#probit') showMenu('probit'); else if (location.hash === '#7500fast') showMenu('eds');
-initEds({ $, saveBlob });
+const eds = initEds({ $, saveBlob });
+async function edsPreview() {
+  const msg = $('edsExpMsg'); msg.textContent = '';
+  try {
+    const r = await eds.report();
+    pvMode = 'eds'; $('pvDiff').closest('label').hidden = true; $('pvBody').innerHTML = `<div class="paper">${r.pages.join('')}</div>`;
+    $('pvNote').innerHTML = '7500FAST 결과 보고서 · 임계값을 바꿨다면 바뀐 값이 반영돼요. <b>HWPX로 내보내기</b>, 인쇄, PDF, PNG를 쓸 수 있어요.';
+    $('preview').showModal();
+  } catch (e) { msg.textContent = '미리보기 실패: ' + e.message; }
+}
+async function edsExport() {
+  const msg = $('edsExpMsg'); msg.textContent = 'HWPX 만드는 중…';
+  try { await eds.exportHwpx(); msg.textContent = '✅ HWPX로 저장했어요. 한글에서 열어 확인해 주세요 (아직 한글에서 직접 열어 보지는 못했어요).'; $('pvNote').textContent = ''; }
+  catch (e) { msg.textContent = 'HWPX 내보내기 실패: ' + e.message; }
+}
+$('edsPreview').addEventListener('click', edsPreview);
+$('edsHwpx').addEventListener('click', edsExport);
 
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {
@@ -738,7 +756,7 @@ async function downloadPdf() {
       if (i) pdf.addPage();
       pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', 10 + (maxW - w) / 2, 10, w, h);
     }
-    pdf.save('BCoV_숙련도평가_결과서.pdf');
+    pdf.save(pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.pdf` : 'BCoV_숙련도평가_결과서.pdf');
   } catch (e) { $('pvNote').textContent = 'PDF 저장 실패: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = old; }
 }
@@ -813,11 +831,11 @@ $('plotPng').addEventListener('click', downloadPlotPng);
 $('btnXlsx').addEventListener('click', downloadXlsx);
 document.addEventListener('click', (e) => { if (e.target.id === 'stockReset') { const s = $('stock'); s.value = String(BASE_STOCK); s.dispatchEvent(new Event('input', { bubbles: true })); refreshNum(); } });
 $('btnExport').addEventListener('click', doExport);
-$('pvExport').addEventListener('click', doExport);
+$('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : doExport()));
 
 // 정보 창 (제작자 · 라이선스 · 서드파티 · 변경 이력)
 $('ver').textContent = `v${VERSION}`;
-$('aboutTitle').textContent = `하수 PCR 검증기 v${VERSION} (베타)`;
+$('aboutTitle').textContent = `HeavelyLab(LabPhobia) v${VERSION} (베타)`;
 async function showDoc(name) {
   $('aboutDoc').textContent = '불러오는 중…';
   try { const r = await fetch(name, { cache: 'no-cache' }); $('aboutDoc').textContent = r.ok ? await r.text() : `${name}을 불러오지 못했습니다`; }

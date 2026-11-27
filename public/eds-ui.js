@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // 7500 Fast 결과(.eds) 보기 화면: 요약 · 플레이트 · 증폭 곡선 · 결과표 · 시료×검출기 요약
-import { readEds, summarize, standardCurves } from './eds.js';
+import { readEds, summarize, standardCurves, applyThresholds } from './eds.js';
+import { buildModel, renderPages, buildHwpx } from './eds-report.js';
+import { VERSION, APP_INFO } from './version.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const PALETTE = ['#2f80ed', '#e08e0b', '#c0362c', '#12804a', '#8a4bd5', '#0e8fa0', '#d6336c', '#5f6b73'];
@@ -12,7 +14,9 @@ const dur = (a, b) => { if (!a || !b || b < a) return ''; const m = Math.round((
 
 export function initEds({ $, saveBlob }) {
   let data = null, fileName = '';
-  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '', view: 'wide', val: 'ct', flt: {}, sortCol: null, sortDir: 'asc' };
+  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '', view: 'wide', val: 'ct', flt: {}, sortCol: null, sortDir: 'asc', thr: {}, user: new Set() };
+  const thrOf = (d) => (S.thr[d.name] ?? d.threshold);
+  const fmtT = (v) => (v === null || v === undefined ? '–' : v < 100 ? String(+v.toPrecision(4)) : Math.round(v).toLocaleString('en-US'));
   const col = (t) => PALETTE[Math.max(0, data.detectors.findIndex((d) => d.name === t)) % PALETTE.length];
 
   // ---------- 파일 읽기 ----------
@@ -22,7 +26,7 @@ export function initEds({ $, saveBlob }) {
     try {
       if (typeof JSZip === 'undefined') throw new Error('JSZip 로드 실패');
       data = await readEds(await file.arrayBuffer(), JSZip);
-      fileName = file.name; S.sel.clear(); S.hidden.clear(); S.q = ''; S.tgt = '';
+      fileName = file.name; S.sel.clear(); S.hidden.clear(); S.q = ''; S.tgt = ''; S.thr = {}; S.user = new Set(); S.flt = {}; S.sortCol = null;
       msg.textContent = `${file.name} · ${(file.size / 1024).toFixed(0)} KB — 이 컴퓨터의 브라우저 안에서만 읽었어요 (서버로 올라가지 않아요).`;
       $('edsBody').hidden = false; renderAll();
     } catch (e) { data = null; $('edsBody').hidden = true; msg.className = 'pberr'; msg.textContent = e.message || String(e); }
@@ -45,8 +49,9 @@ export function initEds({ $, saveBlob }) {
     const cnt = (n) => { const rs = data.reads.filter((r) => r.target === n); return [rs.length, rs.filter((r) => r.detected).length]; };
     const th = (x, tip) => `<th title="${esc(tip)}">${x}</th>`;
     $('edsDets').innerHTML = '<table class="drt edsdet"><thead><tr>' + th('표시', '행을 누르면 증폭 곡선에서 숨기거나 보여요') + th('표적유전자', 'Target(Detector): 증폭하려는 유전자 · 프라이머/프로브 세트의 이름') + th('형광 다이', 'Reporter: 프로브 5′ 끝의 형광 물질 (FAM, JOE, CY5 …)') + th('소광체', 'Quencher: 프로브가 온전할 때 형광을 눌러 두는 물질 (None = 장비 설정에 지정하지 않음)') +
-      th('임계값', 'Threshold: Ct를 정하는 ΔRn 기준선. 곡선이 이 값을 처음 넘는 사이클이 Ct') + th('임계값 방식', 'Auto = 소프트웨어가 자동 계산, Manual = 사용자가 직접 지정') + th('베이스라인', 'Baseline: 증폭 전 배경 신호를 구하는 사이클 범위 (시작–끝)') + th('웰 수', '이 검출기의 결과 건수') + th('검출', 'Ct가 정해진 건수 (나머지는 Undetermined)') + '</tr></thead><tbody>' +
-      data.detectors.map((d) => { const [n, k] = cnt(d.name); return `<tr data-det="${esc(d.name)}" class="${S.hidden.has(d.name) ? 'off' : ''}"><td><i class="ld" style="background:${col(d.name)}"></i>${S.hidden.has(d.name) ? '숨김' : '표시'}</td><td style="font-weight:800">${esc(d.name)}</td><td>${esc(d.reporter)}</td><td>${esc(d.quencher)}</td><td>${d.threshold === null ? '–' : d.threshold < 100 ? d.threshold : Math.round(d.threshold).toLocaleString('en-US')}</td><td>${d.autoCt === null ? '–' : d.autoCt ? 'Auto' : 'Manual'}</td><td>${d.baseStart === null ? '–' : `${d.baseStart} – ${d.baseStop}`}</td><td>${n}</td><td>${k}</td></tr>`; }).join('') + '</tbody></table>';
+      th('장비 임계값', '장비 소프트웨어가 Ct 계산에 쓴 임계값 (ΔRn 기준)') + th('사용할 임계값 ✎', '직접 입력하면 이 값으로 Ct를 다시 계산해요. 비우면 장비 값으로 돌아가요.') + th('방식', 'Auto = 장비가 자동 계산, Manual = 사용자가 직접 지정') + th('베이스라인', 'Baseline: 증폭 전 배경 신호를 구하는 사이클 범위 (시작–끝)') + th('웰 수', '이 검출기의 결과 건수') + th('검출', 'Ct가 정해진 건수 (나머지는 Undetermined)') + '</tr></thead><tbody>' +
+      data.detectors.map((d) => { const [n, k] = cnt(d.name), u = S.user.has(d.name); return `<tr data-det="${esc(d.name)}" class="${S.hidden.has(d.name) ? 'off' : ''}"><td><i class="ld" style="background:${col(d.name)}"></i>${S.hidden.has(d.name) ? '숨김' : '표시'}</td><td style="font-weight:800">${esc(d.name)}</td><td>${esc(d.reporter)}</td><td>${esc(d.quencher)}</td><td>${fmtT(d.threshold)}</td><td><input class="flt thr${u ? ' user' : ''}" data-thr="${esc(d.name)}" inputmode="decimal" value="${S.thr[d.name] !== undefined ? S.thr[d.name] : ''}" placeholder="${fmtT(d.threshold)}" title="임계값을 직접 입력 (Enter 또는 칸 밖을 누르면 적용)">${u ? ' <span class="und">직접 지정</span>' : ''}</td><td>${d.autoCt === null ? '–' : d.autoCt ? 'Auto' : 'Manual'}</td><td>${d.baseStart === null ? '–' : `${d.baseStart} – ${d.baseStop}`}</td><td>${n}</td><td>${k}</td></tr>`; }).join('') + '</tbody></table>' +
+      (S.user.size ? '<p class="note" style="margin:6px 0 0">⚠ 직접 지정한 임계값으로 <b>이 화면에서 Ct를 다시 계산</b>했어요 (ΔRn을 로그 선형 보간). 장비 소프트웨어와 방법이 달라 같은 임계값이어도 0.1~0.5 사이클 정도 차이가 날 수 있어요. <button id="edsThrReset" type="button" class="linkbtn">모두 장비 값으로 되돌리기</button></p>' : '');
   }
 
   // ---------- 플레이트 ----------
@@ -101,14 +106,14 @@ export function initEds({ $, saveBlob }) {
     for (let c = 1; c <= N; c += c === 1 ? 4 : 5) s += `<line x1="${X(c).toFixed(1)}" y1="${T}" x2="${X(c).toFixed(1)}" y2="${T + ph}" stroke="#eef2f4"/><text x="${X(c).toFixed(1)}" y="${T + ph + 17}" font-size="11" text-anchor="middle" fill="#3a5560">${c}</text>`;
     s += `<rect x="${L}" y="${T}" width="${pw}" height="${ph}" fill="none" stroke="#9db4bd"/><defs><clipPath id="edsclip"><rect x="${L}" y="${T}" width="${pw}" height="${ph}"/></clipPath></defs><g clip-path="url(#edsclip)">`;
     // 임계값 (ΔRn 에서만 의미가 있다)
-    if (sig === 'drn') for (const d of data.detectors) if (!S.hidden.has(d.name) && d.threshold !== null && rs.some((r) => r.target === d.name)) s += `<line x1="${L}" y1="${Y(d.threshold).toFixed(1)}" x2="${W - R}" y2="${Y(d.threshold).toFixed(1)}" stroke="${col(d.name)}" stroke-dasharray="6 4" stroke-opacity=".8"/>`;
+    if (sig === 'drn') for (const d of data.detectors) if (!S.hidden.has(d.name) && thrOf(d) !== null && rs.some((r) => r.target === d.name)) s += `<line x1="${L}" y1="${Y(thrOf(d)).toFixed(1)}" x2="${W - R}" y2="${Y(thrOf(d)).toFixed(1)}" stroke="${col(d.name)}" stroke-dasharray="6 4" stroke-opacity=".8"/>`;
     const anySel = S.sel.size > 0, draw = (r, bold) => {
       const pts = ys(r).map((v, i) => `${X(i + 1).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
       return `<polyline points="${pts}" fill="none" stroke="${col(r.target)}" stroke-width="${bold ? 2.6 : 1.4}" stroke-opacity="${anySel && !bold ? 0.28 : 0.95}" stroke-linejoin="round"/>`;
     };
     for (const r of rs) if (!(anySel && S.sel.has(key(r)))) s += draw(r, false);
     for (const r of rs) if (anySel && S.sel.has(key(r))) s += draw(r, true);
-    if (sig === 'drn') for (const r of rs) if (r.detected && (!anySel || S.sel.has(key(r)))) { const d = data.detectors.find((x) => x.name === r.target); if (d?.threshold !== null && d) s += `<circle cx="${X(r.ct).toFixed(1)}" cy="${Y(d.threshold).toFixed(1)}" r="3.4" fill="#fff" stroke="${col(r.target)}" stroke-width="1.8"/>`; }
+    if (sig === 'drn') for (const r of rs) if (r.detected && (!anySel || S.sel.has(key(r)))) { const d = data.detectors.find((x) => x.name === r.target); if (d && thrOf(d) !== null) s += `<circle cx="${X(r.ct).toFixed(1)}" cy="${Y(thrOf(d)).toFixed(1)}" r="3.4" fill="#fff" stroke="${col(r.target)}" stroke-width="1.8"/>`; }
     s += '</g>';
     s += `<text x="${L + pw / 2}" y="${H - 12}" font-size="12" text-anchor="middle" fill="#14313b">Cycle</text><text transform="translate(16 ${T + ph / 2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#14313b">${sig === 'drn' ? 'ΔRn' : 'Rn'}</text>`;
     s += data.detectors.map((d, i) => `<g transform="translate(${L + 8 + i * 92} ${T + 14})" font-size="11" fill="#3a5560" opacity="${S.hidden.has(d.name) ? 0.3 : 1}"><line x1="0" x2="18" y1="0" y2="0" stroke="${col(d.name)}" stroke-width="2.6"/><text x="23" y="3.5">${esc(d.name)}</text></g>`).join('');
@@ -231,7 +236,9 @@ export function initEds({ $, saveBlob }) {
         s += c.points.map((p) => `<circle cx="${X(p.x)}" cy="${Y(p.ct)}" r="3.8" fill="#fff" stroke="${col(c.target)}" stroke-width="2"><title>${p.well} · Ct ${f2(p.ct)}</title></circle>`).join('');
         s += `<text x="${(L + W - R) / 2}" y="${H - 6}" font-size="11" text-anchor="middle" fill="#14313b">log10(Quantity)</text><text transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" font-size="11" text-anchor="middle" fill="#14313b">Ct</text></svg>`;
         const eff = c.efficiency, good = eff >= 90 && eff <= 110;
-        return `<div class="stdc"><h3 style="margin:0 0 6px;font-size:14px"><i class="ld" style="background:${col(c.target)}"></i>${esc(c.target)}</h3>${s}<div class="edsgrid" style="margin-top:8px"><div><span>Slope</span><b>${c.slope.toFixed(3)}</b></div><div><span>Y-intercept</span><b>${c.intercept.toFixed(3)}</b></div><div><span>R²</span><b>${c.r2.toFixed(4)}</b></div><div><span>Efficiency</span><b style="color:var(${good ? '--ok' : '--bad'})">${eff.toFixed(1)} %</b></div><div><span>표준 점</span><b>${c.n}개 (${c.levels}단계)</b></div></div></div>`;
+        const ex = data.reads.find((r) => r.target === c.target && !/^STANDARD$/i.test(r.task2) && r.detected && r.calcQty);
+        const fx = `<p class="fx" style="margin:8px 0 0">Ct = slope × log10(Q) + intercept &nbsp;(최소제곱)<br>Efficiency = (10<sup>−1/slope</sup> − 1) × 100 = (10<sup>−1/${c.slope.toFixed(3)}</sup> − 1) × 100 = <b>${eff.toFixed(1)} %</b><br>Quantity = 10<sup>(Ct − intercept) ÷ slope</sup>${ex ? ` = 10<sup>(${f2(ex.ct)} − ${c.intercept.toFixed(3)}) ÷ ${c.slope.toFixed(3)}</sup> = ${ex.calcQty.toExponential(3)} <small>(${ex.well})</small>` : ''}</p>`;
+        return `<div class="stdc"><h3 style="margin:0 0 6px;font-size:14px"><i class="ld" style="background:${col(c.target)}"></i>${esc(c.target)}</h3>${s}<div class="edsgrid" style="margin-top:8px"><div><span>Slope</span><b>${c.slope.toFixed(3)}</b></div><div><span>Y-intercept</span><b>${c.intercept.toFixed(3)}</b></div><div><span>R²</span><b>${c.r2.toFixed(4)}</b></div><div><span>Efficiency</span><b style="color:var(${good ? '--ok' : '--bad'})">${eff.toFixed(1)} %</b></div><div><span>표준 점</span><b>${c.n}개 (${c.levels}단계)</b></div></div>${fx}</div>`;
       }).join('') + '</div>';
       const rs = data.reads.filter((r) => cs.some((c) => c.target === r.target) && !/^STANDARD$/i.test(r.task2));
       h += '<h3 class="edsh">정량값 (표준곡선으로 계산)</h3><div class="scroll"><table class="drt edsres"><thead><tr><th>Well</th><th>Sample</th><th>Target</th><th>Ct</th><th title="표준곡선에서 이 사이트가 계산한 값: 10^((Ct − 절편) / 기울기)">계산 Quantity</th><th title="장비 소프트웨어가 파일에 저장한 값">장비 Quantity</th></tr></thead><tbody>' + rs.map((r) => `<tr><td>${r.well}</td><td>${esc(r.sample)}</td><td><i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}</td>` + (r.detected ? `<td>${f2(r.ct)}</td><td>${r.calcQty === null || r.calcQty === undefined ? '' : r.calcQty.toExponential(3)}</td>` : '<td class="und">Undetermined</td><td></td>') + `<td>${r.qty === null ? '' : r.qty.toExponential(3)}</td></tr>`).join('') + '</tbody></table></div>';
@@ -242,6 +249,7 @@ export function initEds({ $, saveBlob }) {
       : '<p class="note">이 파일의 PCR 프로그램에는 <b>융해(Melt) 단계가 없어요</b> (TaqMan 프로브 실험). SYBR Green 실험처럼 융해 단계가 있는 파일에서 융해 곡선을 보여줄 예정이에요.</p>';
   }
   function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); renderStd(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
+  function rerender() { S.user = applyThresholds(data, S.thr); renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); renderStd(); }
   function refreshSel() { renderPlate(); renderPlot(); renderTable(); $('edsSel').textContent = S.sel.size ? `선택 ${S.sel.size}건` : ''; }
 
   // ---------- 상호작용 ----------
@@ -277,7 +285,13 @@ export function initEds({ $, saveBlob }) {
     drag = null; refreshSel();
   });
   $('edsTable').addEventListener('click', (e) => { if (e.target.closest('input,[data-sort]')) return; const tr = e.target.closest('[data-k]'); if (!tr) return; const ks = tr.dataset.k.split(';'), all = ks.every((k) => S.sel.has(k)); ks.forEach((k) => (all ? S.sel.delete(k) : S.sel.add(k))); refreshSel(); });
-  $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
+  $('edsDets').addEventListener('change', (e) => {
+    const i = e.target.closest('input[data-thr]'); if (!i) return;
+    const s = i.value.trim().replace(/,/g, ''), v = Number(s);
+    if (s === '') delete S.thr[i.dataset.thr]; else if (Number.isFinite(v) && v > 0) S.thr[i.dataset.thr] = v; else { i.value = ''; delete S.thr[i.dataset.thr]; }
+    rerender();
+  });
+  $('edsDets').addEventListener('click', (e) => { if (e.target.closest('#edsThrReset')) { S.thr = {}; rerender(); return; } if (e.target.closest('input')) return; const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
   $('edsSig').addEventListener('change', () => { S.sig = $('edsSig').value; renderPlot(); });
   $('edsLog').addEventListener('change', () => { S.log = $('edsLog').checked; renderPlot(); });
   $('edsOnly').addEventListener('change', () => { S.only = $('edsOnly').checked; renderPlot(); });
@@ -309,5 +323,32 @@ export function initEds({ $, saveBlob }) {
     const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
     try { const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); const c = document.createElement('canvas'); c.width = 1560; c.height = 880; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); saveBlob(await new Promise((res) => c.toBlob(res, 'image/png')), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_amplification.png'); } finally { URL.revokeObjectURL(url); }
   });
-  return { load };
+  // ---- 보고서 (미리보기 · HWPX) ----
+  async function svgToPng(svg, W = 1560) {
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
+    try {
+      const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+      const vb = svg.viewBox.baseVal, H = Math.round((W * vb.height) / vb.width), c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(img, 0, 0, W, H);
+      const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+      return { png: new Uint8Array(await blob.arrayBuffer()), dataUrl: c.toDataURL('image/png'), w: W, h: H };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  const baseName = () => (data?.info.name || fileName.replace(/\.eds$/i, '') || '7500FAST').replace(/[\\/:*?"<>|]/g, '_');
+  async function report() {
+    if (!data) throw new Error('먼저 .eds 파일을 열어 주세요');
+    const svg = $('edsPlot').querySelector('svg'), images = svg ? { plot: await svgToPng(svg) } : {};
+    const model = buildModel(data, { fileName, version: VERSION, program: APP_INFO.name, thr: S.thr, user: S.user, curves: S.std, images });
+    return { model, images, pages: renderPages(model, images), name: baseName() };
+  }
+  async function exportHwpx() {
+    const r = await report();
+    const blob = await buildHwpx(r.model, r.images, { JSZip, program: APP_INFO.name });
+    saveBlob(blob, `${r.name}_7500FAST_결과서.hwpx`);
+  }
+  $('edsSample').addEventListener('click', async () => {
+    try { const res = await fetch('samples/demo_7500fast.eds'); if (!res.ok) throw new Error('샘플을 불러오지 못했어요'); await load(new File([await res.blob()], 'demo_7500fast.eds')); }
+    catch (e) { const m = $('edsMsg'); m.className = 'pberr'; m.textContent = e.message; }
+  });
+  return { load, report, exportHwpx, name: () => baseName(), has: () => !!data };
 }

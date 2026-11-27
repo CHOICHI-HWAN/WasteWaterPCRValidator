@@ -119,6 +119,41 @@ export function standardCurves(data) {
   return out;
 }
 
+// ---- 사용자 임계값: ΔRn 곡선이 임계값 T를 처음 넘는 지점을 로그 선형 보간으로 다시 구한다 ----
+// Ct = n + (ln T − ln ΔRn[n]) / (ln ΔRn[n+1] − ln ΔRn[n])   (n = T 바로 아래 사이클, 이후 곡선이 계속 T 이상일 때만 인정)
+// 장비 소프트웨어의 Ct와 계산 방식이 달라서 같은 임계값이라도 0.1~0.5 사이클 정도 차이가 날 수 있다.
+export function crossing(y, T) {
+  if (!(T > 0) || !y?.length) return null;
+  for (let i = 1; i < y.length; i++) {
+    if (y[i - 1] < T && y[i] >= T) {
+      let ok = true; for (let k = i; k < y.length; k++) if (y[k] < T) { ok = false; break; }
+      if (!ok) continue;
+      const a = y[i - 1], b = y[i];
+      return a > 0 ? i + (Math.log(T) - Math.log(a)) / (Math.log(b) - Math.log(a)) : i + (T - a) / (b - a);
+    }
+  }
+  return null;
+}
+const meanSd = (v) => { const n = v.length, m = v.reduce((a, b) => a + b, 0) / n; return { m, sd: n > 1 ? Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (n - 1)) : null }; };
+
+// thr: { 검출기이름: 임계값 }. 장비 임계값과 같거나 비어 있으면 파일에 저장된 장비 값을 그대로 쓴다.
+export function applyThresholds(data, thr = {}) {
+  const user = new Set();
+  for (const d of data.detectors) { const v = thr[d.name]; if (Number.isFinite(v) && v > 0 && v !== d.threshold) user.add(d.name); }
+  for (const r of data.reads) {
+    r.o ??= { ct: r.ct, detected: r.detected, ctMean: r.ctMean, ctSd: r.ctSd };
+    if (user.has(r.target)) { const c = crossing(r.drn, thr[r.target]); r.ct = c ?? UNDET_CT; r.detected = c !== null; r.recalc = true; }
+    else { r.ct = r.o.ct; r.detected = r.o.detected; r.ctMean = r.o.ctMean; r.ctSd = r.o.ctSd; r.recalc = false; }
+  }
+  const groups = new Map();
+  for (const r of data.reads) if (r.recalc) { const k = r.sample + '\u0000' + r.target; (groups.get(k) ?? groups.set(k, []).get(k)).push(r); }
+  for (const g of groups.values()) {
+    const det = g.filter((r) => r.detected).map((r) => r.ct), s = det.length ? meanSd(det) : { m: null, sd: null };
+    for (const r of g) { r.ctMean = r.detected ? s.m : null; r.ctSd = r.detected ? s.sd : null; }
+  }
+  return user;
+}
+
 const FILES = { experiment: 'apldbio/sds/experiment.xml', tcprotocol: 'apldbio/sds/tcprotocol.xml', analysisProtocol: 'apldbio/sds/analysis_protocol.xml', analysisResult: 'apldbio/sds/analysis_result.txt', plateSetup: 'apldbio/sds/plate_setup.xml' };
 
 // .eds(zip)를 읽는다. 항목 이름은 대소문자·구분자(\ /)를 가리지 않는다.

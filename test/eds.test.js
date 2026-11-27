@@ -35,3 +35,32 @@ console.log('eds tests passed');
   assert.ok(Math.abs(reads[8].calcQty / 5e4 - 1) < 1e-9); assert.equal(reads[9].calcQty, null);
   console.log('std tests passed');
 }
+
+// 임계값 재계산: crossing / applyThresholds
+{
+  const { crossing, applyThresholds } = await import('../public/eds.js');
+  const y = [1, 2, 4, 8, 16, 32, 64, 128, 128, 128];       // 정확히 2배씩
+  assert.ok(Math.abs(crossing(y, 16) - 5) < 1e-12);          // T=16 은 5번째 사이클 값
+  assert.ok(Math.abs(crossing(y, 24) - (4 + Math.log2(24 / 16))) < 1e-9 || Math.abs(crossing(y, 24) - 5.585) < 0.01);
+  assert.equal(crossing(y, 1000), null);
+  assert.equal(crossing([0, 50, 5, 30], 40), null, '중간에 다시 내려가면 인정하지 않음');
+  const mk = (idx, sample, ct, drn) => ({ idx, sample, target: 'T', ct, detected: ct < 40, ctMean: null, ctSd: null, drn, rn: [] });
+  const data = { detectors: [{ name: 'T', threshold: 16 }], reads: [mk(0, 'S', 5, y), mk(1, 'S', 5, y)] };
+  assert.equal(applyThresholds(data, { T: 16 }).size, 0);   // 장비와 같은 값이면 사용자 지정 아님
+  const u = applyThresholds(data, { T: 64 });
+  assert.ok(u.has('T') && Math.abs(data.reads[0].ct - 7) < 1e-9 && data.reads[0].ctSd === 0 && data.reads[0].ctMean === data.reads[0].ct);
+  applyThresholds(data, {});                                 // 되돌리기
+  assert.equal(data.reads[0].ct, 5);
+  console.log('threshold tests passed');
+}
+// 보고서 모델
+{
+  const { buildModel, renderPages } = await import('../public/eds-report.js');
+  const d = parseEds(f);
+  d.reads.forEach((r) => { r.task2 = r.task; });
+  const m = buildModel(d, { fileName: 't.eds', version: '0', program: 'P', thr: {}, user: new Set(), curves: [], images: {} });
+  assert.ok(m.some((b) => b.t === 'title') && m.filter((b) => b.t === 'table').length >= 5);
+  const pages = renderPages(m, {});
+  assert.ok(pages.length >= 1 && pages.join('').includes('B5'));
+  console.log('report model tests passed');
+}

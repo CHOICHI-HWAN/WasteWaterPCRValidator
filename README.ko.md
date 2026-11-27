@@ -1,4 +1,7 @@
-# 하수 PCR 검증기 (WasteWater PCR Validator)
+# HeavelyLab (LabPhobia)
+
+*예전 이름: "하수 PCR 검증기" (저장소 이름은 그대로).* 세 개의 탭이 있는 작은 실험실 도구 모음이에요: **직선성 검증(Linearity Test)**(표준곡선 · 증폭효율 · 회수율), **Probit 분석(LoD)**, **7500FAST**(`.eds` 결과 파일 보기).
+
 
 [![tests](https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/actions/workflows/ci.yml/badge.svg)](https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/actions/workflows/ci.yml)
 ![version](https://img.shields.io/github/package-json/v/CHOICHI-HWAN/WasteWaterPCRValidator?label=version)

@@ -1,4 +1,4 @@
-하수 PCR 검증기 (Windows 실행 파일)  {{VERSION}} BETA
+HeavelyLab(LabPhobia) (Windows 실행 파일)  {{VERSION}} BETA
 제작: 치치박사&박박사  ·  라이선스: GPL v3
 ※ 베타 테스트 버전입니다. 숙련도 평가를 위한 임시 사용 목적이며, 계산 결과와 내보낸 결과서는 제출 전에 반드시 직접 검토·확인하세요.
 

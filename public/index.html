@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" id="themeColor" content="#0e8fa0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2048%2048%27%3E%3Cdefs%3E%3ClinearGradient%20id=%27g%27%20x1=%270%27%20y1=%270%27%20x2=%271%27%20y2=%271%27%3E%3Cstop%20offset=%270%27%20stop-color=%27%230e8fa0%27/%3E%3Cstop%20offset=%271%27%20stop-color=%27%232f80ed%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width=%2748%27%20height=%2748%27%20rx=%2711%27%20fill=%27url%28%23g%29%27/%3E%3Cpath%20d=%27M24%209C24%209%2013%2021%2013%2029a11%2011%200%200022%200C35%2021%2024%209%2024%209z%27%20fill=%27%23fff%27/%3E%3C/svg%3E">
-<title>하수 PCR 검증기</title>
+<title>직선성 검증 (Linearity Test) · HeavelyLab(LabPhobia)</title>
 <style>
   /* ===== 디자인 토큰: 맑은 물 ===== */
   :root {
@@ -41,6 +41,7 @@
   @media (min-width:1392px) { .hero { margin:0 calc(50% - 50vw); padding-left:calc(50vw - 680px + 16px); padding-right:calc(50vw - 680px + 16px); } }
   .hero-in { max-width:1328px; display:flex; gap:18px; align-items:center; padding-bottom:40px; position:relative; z-index:1; }
   .hero .ico { flex:0 0 64px; width:64px; height:64px; border-radius:20px; background:rgba(255,255,255,.18); display:grid; place-items:center; box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); }
+  .hero .brand { font-size:12.5px; font-weight:800; letter-spacing:.06em; opacity:.88; margin-bottom:2px; }
   .hero h1 { font-size:28px; font-weight:800; }
   .hero p { margin:4px 0 12px; opacity:.92; font-size:15px; }
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
@@ -264,7 +265,8 @@
         <svg id="icoProbit" style="display:none" width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M5 40h38" stroke="#fff" stroke-opacity=".7" stroke-width="2.5" stroke-linecap="round"/><path d="M5 38C14 38 16 10 24 10s10 28 19 28" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><path d="M24 10v28" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-dasharray="3 3"/><circle cx="24" cy="10" r="3.2" fill="#fff"/></svg>
       </div>
       <div>
-        <h1 id="heroTitle">하수 PCR 검증기</h1>
+        <div class="brand" id="brand">HeavelyLab(LabPhobia)</div>
+        <h1 id="heroTitle">직선성 검증 (Linearity Test)</h1>
         <p id="heroSub">Ct 값만 넣으면 표준곡선 · 증폭효율 · 회수율을 한 번에 확인하고, 결과서(HWPX)까지 만들어 드려요.</p>
         <div class="chips">
           <span class="chip beta" id="betaChip">BETA · 숙련도 평가 임시 사용</span>
@@ -282,7 +284,7 @@
   <div class="layout">
   <div id="appRoot">
   <div class="seg" role="tablist" aria-label="분석 메뉴" id="mainTabs" style="margin-bottom:16px">
-    <button id="mtMain" role="tab" class="on">📈 표준곡선 · 회수율 검증</button>
+    <button id="mtMain" role="tab" class="on">📈 직선성 검증 (Linearity Test)</button>
     <button id="mtProbit" role="tab">🧬 Probit 분석 (LoD)</button>
     <button id="mtEds" role="tab">🧫 7500FAST</button>
   </div>
@@ -412,7 +414,7 @@
   </div>
   <div id="panelProbit" hidden>
   <section class="card" id="probitCard">
-    <div class="chead"><h2>🧬 Probit 회귀 · LoD <span class="tag opt">선택</span></h2><span class="hint">농도별 검출(양성) 횟수로 <b>C05 · C50 · C95</b>(검출률 5 · 50 · 95 %가 되는 농도)를 구해요. 표준곡선·회수율 검증과는 별개의 분석이에요.</span></div>
+    <div class="chead"><h2>🧬 Probit 회귀 · LoD <span class="tag opt">선택</span></h2><span class="hint">농도별 검출(양성) 횟수로 <b>C05 · C50 · C95</b>(검출률 5 · 50 · 95 %가 되는 농도)를 구해요. 직선성 검증(표준곡선·회수율)과는 별개의 분석이에요.</span></div>
     <p class="fx" style="margin:0 0 12px">probit(p) = a + b · log10(농도)  ·  C<sub>p</sub> = 10<sup>(z<sub>p</sub> − a) / b</sup>  (z<sub>p</sub> = Φ<sup>−1</sup>(p), C50 = 10<sup>−a/b</sup>, C95는 z = 1.645)</p>
     <div class="row">
       <label>농도 단위<input id="pbUnit" class="txt" type="text" value="copies/µL" placeholder="예: copies/µL"></label>
@@ -440,9 +442,18 @@
   <section class="card">
     <div class="chead"><h2>🧫 7500 Fast 결과 보기 <span class="tag opt">.eds</span></h2><span class="hint">Applied Biosystems 7500 Fast에서 저장한 <b>.eds</b> 파일을 열어 플레이트 · 증폭 곡선 · Ct 결과를 바로 볼 수 있어요.</span></div>
     <label class="drop" id="edsDrop" style="cursor:pointer"><span style="font-size:28px">📂</span><span><b>.eds 파일을 끌어다 놓거나 눌러서 선택</b><br><small class="note" style="margin:0">파일은 이 컴퓨터의 브라우저 안에서만 읽어요. 서버로 올라가지 않아요.</small></span><input id="edsFile" type="file" accept=".eds" hidden></label>
+    <div class="row" style="margin:10px 0 0"><button id="edsSample" type="button">🧪 샘플 불러오기 (가상 데이터)</button></div>
     <div id="edsMsg" class="note"></div>
   </section>
   <div id="edsBody" hidden>
+    <section class="card">
+      <div class="chead"><h2>📤 결과 저장</h2><span class="hint">지금 보이는 임계값·결과를 그대로 보고서로 만들어요.</span></div>
+      <div class="row" style="margin-bottom:0">
+        <button id="edsPreview">👀 보고서 미리보기 (인쇄 · PDF · PNG)</button>
+        <button id="edsHwpx" class="primary">📥 HWPX로 내보내기</button>
+      </div>
+      <p class="note" id="edsExpMsg"></p>
+    </section>
     <section class="card">
       <div class="chead"><h2 id="edsTitle">실험 요약</h2></div>
       <div id="edsInfo"></div>
@@ -467,6 +478,7 @@
         <button id="edsPng">🖼️ 그래프 PNG 저장</button>
       </div>
       <div class="pbplot" style="position:relative"><div id="edsPlot"></div><div id="edsTip" class="edstip" hidden></div></div>
+      <p class="fx">ΔRn = Rn − 베이스라인 &nbsp;(Rn = 리포터 형광 ÷ 참조 형광)<br>Ct = ΔRn이 임계값 T를 처음 넘는 사이클<br>임계값을 직접 바꾸면: Ct = n + (ln T − ln ΔRn<sub>n</sub>) ÷ (ln ΔRn<sub>n+1</sub> − ln ΔRn<sub>n</sub>) &nbsp;(n = T 바로 아래 사이클)</p>
     </section>
     <section class="card">
       <div class="chead"><h2>📉 표준곡선 정량</h2><span class="hint">표준(STANDARD) 웰의 Ct와 양으로 기울기 · 절편 · R² · 효율을 구하고, 나머지 웰의 양을 계산해요.</span></div>
@@ -479,6 +491,7 @@
     <section class="card">
       <div class="chead"><h2>🧮 시료 × 검출기 요약</h2><span class="hint">검출된 반복의 평균 Ct (양성 수/반복 수). ND = Undetermined</span></div>
       <div class="scroll" id="edsPivot"></div>
+      <p class="fx">평균 Ct = ΣCt ÷ n &nbsp;·&nbsp; SD = √( Σ(Ct − 평균)² ÷ (n − 1) ) &nbsp;(검출된 반복만, 표본 표준편차)</p>
     </section>
     <details class="card fold">
       <summary><span class="step" style="background:linear-gradient(135deg,#8aa4af,#5f7a86);box-shadow:none">?</span>용어 설명 — 결과를 읽는 법</summary>
@@ -502,6 +515,7 @@
       <div class="row"><label>검색<input id="edsQ" class="txt" type="search" placeholder="웰 · 시료 · 검출기"></label><label>검출기<select id="edsTgt" class="txt"></select></label><label>표 형태<select id="edsView" class="txt"><option value="wide">웰 × 표적 (표적을 열로)</option><option value="list">목록 (웰·표적마다 한 줄)</option></select></label><label>값<select id="edsVal" class="txt"><option value="ct">Ct</option><option value="mean">Ct Mean</option><option value="sd">Ct SD</option></select></label>
       <label class="chk" title="항목(Well, Sample, Ct …)을 세로로, 각 결과를 가로로 보여요. CSV 저장도 같은 방향이에요."><input type="checkbox" id="edsTr"> <b>행↔열 바꾸기</b> (Transpose)</label><button id="edsFltClear" hidden title="열 필터와 정렬을 모두 해제">✖ 필터·정렬 해제</button><button id="edsCsv">⬇️ CSV 저장</button></div>
       <div class="scroll" id="edsTable" style="max-height:520px;overflow:auto"></div>
+      <p class="fx">Undetermined = 40 사이클 안에 임계값을 넘지 못함(Ct 40.0) &nbsp;·&nbsp; Ct Mean = ΣCt ÷ n &nbsp;·&nbsp; Ct SD = √( Σ(Ct − Mean)² ÷ (n − 1) )</p>
     </section>
   </div>
   </div>
@@ -511,7 +525,7 @@
     <div class="sidecard">
       <section class="sbox">
         <h3>About</h3>
-        <p id="aboutTxt">하수 병원체 PCR 숙련도 평가용 <b>표준곡선 · 증폭효율 · 회수율 검증기</b>. Ct 값으로 결과서(HWPX)를 검증하고 내보내요.</p>
+        <p id="aboutTxt"><b>HeavelyLab(LabPhobia)</b> — 하수 병원체 PCR 숙련도 평가용 <b>직선성 검증(표준곡선 · 증폭효율 · 회수율)</b>. Ct 값으로 결과서(HWPX)를 검증하고 내보내요.</p>
         <ul class="smeta">
           <li><span class="ic">🌐</span><a href="https://wwpcr.web.app" id="siteLink">wwpcr.web.app</a></li>
           <li><span class="ic">📦</span><a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub 저장소</a></li>
@@ -564,7 +578,7 @@
   </dialog>
 
   <footer class="foot">
-    <span id="footName" hidden>Probit 분석 (LoD) — 농도별 검출률 · C05 / C50 / C95</span><span id="footBy">제작: 치치박사&amp;박박사</span> · <span id="ver"></span> <span class="betatag">BETA</span> · <span>GPL v3</span><br>
+    <span id="footName" hidden>Probit 분석 (LoD) — 농도별 검출률 · C05 / C50 / C95</span><span id="footBy"><b>HeavelyLab(LabPhobia)</b> · 제작: 치치박사&amp;박박사</span> · <span id="ver"></span> <span class="betatag">BETA</span> · <span>GPL v3</span><br>
     <a href="#" id="aboutOpen">정보 · 서드파티 · 변경 이력</a> ·
     <a href="https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator" target="_blank" rel="noopener">GitHub</a>
   </footer>

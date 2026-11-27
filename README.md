@@ -1,4 +1,7 @@
-# WasteWater PCR Validator
+# HeavelyLab (LabPhobia)
+
+*Formerly "WasteWater PCR Validator" (repository name unchanged).* This program is a small lab toolbox with three tabs: **Linearity Test** (standard curve, efficiency, recovery), **Probit analysis (LoD)** and **7500FAST** (open `.eds` run files).
+
 
 [![tests](https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/actions/workflows/ci.yml/badge.svg)](https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/actions/workflows/ci.yml)
 ![version](https://img.shields.io/github/package-json/v/CHOICHI-HWAN/WasteWaterPCRValidator?label=version)
@@ -28,7 +31,7 @@ A browser tool that takes the Ct values of the BCoV standard curve and the extra
 
 5b. **Probit regression / detection limit (LoD).** From the number of positives out of the replicates tested at each concentration, fits `probit(p) = a + b log10(conc)` by maximum likelihood and reports **C05, C50 and C95** (the concentrations with 5 %, 50 % and 95 % detection) with Fieller 95 % intervals, goodness of fit, a detection-rate curve and warnings (extrapolation, wide intervals, complete separation). Validated against an independent optimiser and a classic published data set. Shown in its own tab with a MedCalc-style dose-response plot (95 % band) and table.
 
-5c. **7500FAST tab.** Drop an Applied Biosystems 7500 Fast `.eds` result file to see the run summary, the 96-well plate layout, amplification curves (ΔRn / Rn, log axis, thresholds, Ct marks), a sample x target mean-Ct table and the result table (CSV export). Read in your browser only.
+5c. **7500FAST tab.** Try the built-in synthetic sample or drop an Applied Biosystems 7500 Fast `.eds` result file to see the run summary, the 96-well plate layout, amplification curves (ΔRn / Rn, log axis, thresholds, Ct marks), a sample x target mean-Ct table and the result table (CSV export). Thresholds can be set by hand (Ct is recalculated on screen) and the result can be saved as a preview / print / PDF / PNG report or an **HWPX** file. Read in your browser only.
 
 ### Result forms (HWPX)
 
