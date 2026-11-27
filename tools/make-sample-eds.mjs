@@ -58,7 +58,7 @@ const colors = [-8076815, -5701666, -2105970, -524376, -4915456, -1330000, -9000
 const experiment = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Experiment>
     <Name>DEMO_7500FAST_synthetic</Name>
-    <Description>가상 데이터 (실제 시료 아님) — 표준곡선 정량 예시</Description>
+    <Description>가상 데이터 (실제 시료 아님)</Description>
     <Operator>demo</Operator>
     <RunState>COMPLETE</RunState>
     <FinalAnalysisCompleted>true</FinalAnalysisCompleted>

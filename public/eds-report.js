@@ -17,6 +17,7 @@ export function buildModel(data, o) {
   const thrOf = (d) => (o.thr?.[d.name] ?? d.threshold);
   B.push({ t: 'title', text: '7500 Fast 결과 보고서' });
   B.push({ t: 'sub', text: i.name || o.fileName || '' });
+  B.push({ t: 'approval', roles: o.approvers ?? ['실무자', '중간관리자', '관리자'] });
   B.push({ t: 'p', small: true, center: true, text: `원본 파일: ${o.fileName || '–'}  ·  생성: ${o.program} 7500FAST v${o.version}  ·  ${(o.now ?? new Date()).toLocaleString('ko-KR', { hour12: false })}` });
 
   B.push({ t: 'h', text: '1. 실험 정보' });
@@ -63,7 +64,7 @@ export function buildModel(data, o) {
   B.push({ t: 'fx', lines: ['평균 Ct = ΣCt ÷ n,   SD = √( Σ(Ct − 평균)² ÷ (n − 1) )   (검출된 반복만, 표본 표준편차) ·  (검출 수/반복 수)'] });
 
   let sec = 8;
-  if (o.curves?.length) {
+  if (o.withStd && o.curves?.length) { // 보고서의 "표준곡선 정량"은 일단 뺌 (o.withStd 로 다시 켤 수 있음)
     B.push({ t: 'h', text: `${sec++}. 표준곡선 정량` });
     B.push({ t: 'table', head: ['표적유전자', 'Slope', 'Y-intercept', 'R²', 'Efficiency (%)', '표준 점'], rows: o.curves.map((c) => [c.target, c.slope.toFixed(3), c.intercept.toFixed(3), c.r2.toFixed(4), c.efficiency.toFixed(1), `${c.n}개 (${c.levels}단계)`]), widths: [2, 1.6, 1.8, 1.6, 2, 2] });
     B.push({ t: 'fx', lines: o.curves.flatMap((c) => [`${c.target}:  Ct = ${c.slope.toFixed(3)} × log10(Q) + ${c.intercept.toFixed(3)}`, `Efficiency = (10^(−1/slope) − 1) × 100 = (10^(−1/${c.slope.toFixed(3)}) − 1) × 100 = ${c.efficiency.toFixed(1)} %`]).concat(['Quantity = 10^((Ct − intercept) ÷ slope)']) });
@@ -83,6 +84,11 @@ function tableHtml(b, rows) {
   const col = (k) => (tot ? ` style="width:${((b.widths[k] / tot) * 100).toFixed(1)}%"` : '');
   return `<table class="form"${b.small ? ' style="font-size:10px"' : ''}><thead><tr>${b.head.map((h, k) => `<th${col(k)}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${cellHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
+// 결재란: 맨 왼쪽 칸에 "결재", 오른쪽에 역할별 칸 (서명 · 일자는 손으로 기입하거나 인쇄 후 서명)
+function approvalHtml(b) {
+  const n = b.roles.length;
+  return `<table class="form apv" style="margin:0 0 8px auto;width:${46 + n * 15}%"><tbody><tr><th rowspan="3" style="width:11%">결<br>재</th>${b.roles.map((r) => `<th>${esc(r)}</th>`).join('')}</tr><tr>${b.roles.map(() => '<td style="height:46px"></td>').join('')}</tr><tr>${b.roles.map(() => '<td style="font-size:10px;color:#666;text-align:left">일자 :</td>').join('')}</tr></tbody></table>`;
+}
 export function renderPages(model, images = {}) {
   const pages = []; let cur = '', used = 0; const CAP = 52;
   const flush = () => { if (cur) pages.push(`<div class="pg">${cur}</div>`); cur = ''; used = 0; };
@@ -90,6 +96,7 @@ export function renderPages(model, images = {}) {
   for (const b of model) {
     if (b.t === 'pb') { flush(); continue; }
     if (b.t === 'title') add(`<h1>${esc(b.text)}</h1>`, weight(b));
+    else if (b.t === 'approval') add(approvalHtml(b), 6);
     else if (b.t === 'sub') add(`<p style="text-align:center;font-weight:700;margin:-6px 0 4px">${esc(b.text)}</p>`, weight(b));
     else if (b.t === 'h') { if (used + 8 > CAP) flush(); add(`<p class="sec">${esc(b.text)}</p>`, weight(b)); }
     else if (b.t === 'p') add(`<p class="fn"${b.center ? ' style="text-align:center"' : ''}>${esc(b.text)}</p>`, weight(b));
@@ -122,7 +129,7 @@ const X = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': 
 const HH = 'http://www.hancom.co.kr/hwpml/2011/head', HC = 'http://www.hancom.co.kr/hwpml/2011/core';
 const TEXT_W = 48190; // A4 세로, 좌우 여백 5669 를 뺀 본문 폭 (HWPUNIT)
 
-export async function buildHwpx(model, images, { JSZip, templateUrl = 'template.hwpx', program = 'HeavenlyLab(LabPhobia)' } = {}) {
+export async function buildHwpx(model, images, { JSZip, templateUrl = 'template.hwpx', program = 'Park&Choi Heavenly Lab(LabPhobia)' } = {}) {
   const res = await fetch(templateUrl); if (!res.ok) throw new Error('서식(template.hwpx)을 불러오지 못했어요');
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
   let hxml = await zip.file('Contents/header.xml').async('string');
@@ -165,6 +172,14 @@ export async function buildHwpx(model, images, { JSZip, templateUrl = 'template.
   const bins = []; let imgIdx = 1;
   for (const b of model) {
     if (b === first) continue;
+    if (b.t === 'approval') {
+      const n = b.roles.length, cB = cp(900, true), cN = cp(800, false), W0 = 3600, WR = 8000, widthTot = W0 + n * WR, rowH = [1500, 3200, 1400];
+      const cells = (r, ri) => r.map((v, ci) => cell(v, ci, ri, ci === 0 ? W0 : WR, rowH[ri], { head: ri === 0 || ci === 0, c: ri === 0 || ci === 0 ? cB : cN, left: ri === 2 && ci > 0 }));
+      const rowsV = [['결재', ...b.roles], ['서명', ...b.roles.map(() => '')], ['일자', ...b.roles.map(() => '')]];
+      const trs = rowsV.map((r, ri) => `<hp:tr>${cells(r, ri).join('')}</hp:tr>`).join('');
+      body += `<hp:p id="2147483648" paraPrIDRef="${PLEFT}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cN}"><hp:tbl id="${tblId++}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="3" colCnt="${n + 1}" cellSpacing="0" borderFillIDRef="3" noAdjust="0"><hp:sz width="${widthTot}" widthRelTo="ABSOLUTE" height="${rowH.reduce((a, c) => a + c, 0)}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="RIGHT" vertOffset="0" horzOffset="0"/><hp:outMargin left="140" right="140" top="140" bottom="140"/><hp:inMargin left="141" right="141" top="141" bottom="141"/>${trs}</hp:tbl><hp:t/></hp:run></hp:p>`;
+      continue;
+    }
     if (b.t === 'sub') body += para(b.text, { c: cp(1100, true), pr: PCENTER });
     else if (b.t === 'h') body += spacer() + para(b.text, { c: cp(1100, true) });
     else if (b.t === 'p') body += para(b.text, { c: cp(900, false), pr: b.center ? PCENTER : PLEFT });

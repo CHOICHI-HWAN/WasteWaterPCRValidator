@@ -685,7 +685,8 @@ function showMenu(m) {
   $('fxChip').style.display = cfg.fx ? '' : 'none'; $('betaChip').textContent = cfg.chip;
   $('footName').hidden = m === 'main'; if (cfg.foot) $('footName').textContent = cfg.foot;
   $('betaTxt').innerHTML = cfg.beta ?? B.beta; $('aboutTxt').innerHTML = cfg.about ?? B.about; $('aboutBeta').textContent = cfg.abeta ?? B.abeta;
-  $('themeColor').content = cfg.color; document.title = (cfg.doc ?? B.title[0]) + ' · HeavenlyLab(LabPhobia)';
+  document.querySelectorAll('.dlitem[data-tabs]').forEach((el) => { el.hidden = el.dataset.tabs !== m; });
+  $('themeColor').content = cfg.color; document.title = (cfg.doc ?? B.title[0]) + ' · Park&Choi Heavenly Lab(LabPhobia)';
   try { history.replaceState(null, '', cfg.hash || location.pathname + location.search); } catch {}
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));
@@ -835,7 +836,7 @@ $('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : 
 
 // 정보 창 (제작자 · 라이선스 · 서드파티 · 변경 이력)
 $('ver').textContent = `v${VERSION}`;
-$('aboutTitle').textContent = `HeavenlyLab(LabPhobia) v${VERSION} (베타)`;
+$('aboutTitle').textContent = `Park&Choi Heavenly Lab(LabPhobia) v${VERSION} (베타)`;
 async function showDoc(name) {
   $('aboutDoc').textContent = '불러오는 중…';
   try { const r = await fetch(name, { cache: 'no-cache' }); $('aboutDoc').textContent = r.ok ? await r.text() : `${name}을 불러오지 못했습니다`; }
@@ -877,6 +878,11 @@ $('pbAdd').addEventListener('click', () => { addPbRow({}); recalc(); });
 $('pbClear').addEventListener('click', () => { setPb(); recalc(); });
 $('pbPng').addEventListener('click', pbPngSave);
 $('dlPb').addEventListener('click', pbPngSave);
+$('dlPbCsv').addEventListener('click', () => $('pbCsv').click());
+$('dlEdsHwpx').addEventListener('click', () => $('edsHwpx').click());
+$('dlEdsPreview').addEventListener('click', () => $('edsPreview').click());
+$('dlEdsCsv').addEventListener('click', () => $('edsCsv').click());
+$('dlEdsPng').addEventListener('click', () => $('edsPng').click());
 // exe(로컬 서버) 모드: 브라우저 탭이 열려 있는 동안 신호를 보내고, 마지막 탭을 닫으면 서버가 스스로 종료된다.
 if (LOCAL && location.protocol === 'http:') {
   const tabId = Math.random().toString(36).slice(2, 12);

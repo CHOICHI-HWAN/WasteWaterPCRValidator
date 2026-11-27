@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
-export const VERSION = '0.30.1';
+export const VERSION = '0.31.0';
 export const APP_INFO = {
-  name: 'HeavenlyLab(LabPhobia)',
+  name: 'Park&Choi Heavenly Lab(LabPhobia)',
   stage: 'beta', // 숙련도 평가용 임시 사용 베타 버전
   author: '치치박사&박박사',
   license: 'GPL v3',

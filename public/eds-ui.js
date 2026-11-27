@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // 7500 Fast 결과(.eds) 보기 화면: 요약 · 플레이트 · 증폭 곡선 · 결과표 · 시료×검출기 요약
-import { readEds, summarize, standardCurves, applyThresholds } from './eds.js';
+import { readEds, summarize, applyThresholds } from './eds.js';
 import { buildModel, renderPages, buildHwpx } from './eds-report.js';
 import { VERSION, APP_INFO } from './version.js';
 
@@ -220,36 +220,8 @@ export function initEds({ $, saveBlob }) {
       samples.map((s) => `<tr><td style="text-align:left;font-weight:700">${esc(s)}</td>` + tg.map((t) => { const x = get(s, t); return !x ? '<td></td>' : x.pos ? `<td title="${x.wells.join(', ')}">${f2(x.mean)} <small>(${x.pos}/${x.n})</small></td>` : `<td class="und" title="${x.wells.join(', ')}">ND <small>(0/${x.n})</small></td>`; }).join('') + '</tr>').join('') + '</tbody></table>';
   }
 
-  function renderStd() {
-    const cs = standardCurves(data); S.std = cs;
-    let h = '';
-    if (!cs.length) h = '<p class="note">이 파일에는 <b>표준(STANDARD) 웰</b>이 없어서 표준곡선과 정량값을 만들 수 없어요. 장비에서 웰의 Task를 Standard로 지정하고 양(Quantity)을 넣은 실험(<i>Quantitation – Standard Curve</i>)이어야 해요.</p>';
-    else {
-      h += '<div class="stdwrap">' + cs.map((c) => {
-        const W = 340, H = 240, L = 46, R = 14, T = 16, B = 38, xs = c.points.map((p) => p.x), ys = c.points.map((p) => p.ct);
-        const x0 = Math.floor(Math.min(...xs)) - 0.3, x1 = Math.ceil(Math.max(...xs)) + 0.3, y0 = Math.floor(Math.min(...ys)) - 1, y1 = Math.ceil(Math.max(...ys)) + 1;
-        const X = (v) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
-        let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="'Noto Sans KR',Arial,sans-serif" style="max-width:100%;height:auto"><rect width="${W}" height="${H}" fill="#fff"/>`;
-        for (let v = Math.ceil(y0); v <= y1; v += 2) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e3eaee"/><text x="${L - 6}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#3a5560">${v}</text>`;
-        for (let v = Math.ceil(x0); v <= x1; v++) s += `<line y1="${T}" y2="${H - B}" x1="${X(v)}" x2="${X(v)}" stroke="#e3eaee"/><text x="${X(v)}" y="${H - B + 14}" font-size="10" text-anchor="middle" fill="#3a5560">${v}</text>`;
-        s += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#9db4bd"/><line x1="${X(x0)}" y1="${Y(c.slope * x0 + c.intercept)}" x2="${X(x1)}" y2="${Y(c.slope * x1 + c.intercept)}" stroke="${col(c.target)}" stroke-width="2"/>`;
-        s += c.points.map((p) => `<circle cx="${X(p.x)}" cy="${Y(p.ct)}" r="3.8" fill="#fff" stroke="${col(c.target)}" stroke-width="2"><title>${p.well} · Ct ${f2(p.ct)}</title></circle>`).join('');
-        s += `<text x="${(L + W - R) / 2}" y="${H - 6}" font-size="11" text-anchor="middle" fill="#14313b">log10(Quantity)</text><text transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" font-size="11" text-anchor="middle" fill="#14313b">Ct</text></svg>`;
-        const eff = c.efficiency, good = eff >= 90 && eff <= 110;
-        const ex = data.reads.find((r) => r.target === c.target && !/^STANDARD$/i.test(r.task2) && r.detected && r.calcQty);
-        const fx = `<p class="fx" style="margin:8px 0 0">Ct = slope × log10(Q) + intercept &nbsp;(최소제곱)<br>Efficiency = (10<sup>−1/slope</sup> − 1) × 100 = (10<sup>−1/${c.slope.toFixed(3)}</sup> − 1) × 100 = <b>${eff.toFixed(1)} %</b><br>Quantity = 10<sup>(Ct − intercept) ÷ slope</sup>${ex ? ` = 10<sup>(${f2(ex.ct)} − ${c.intercept.toFixed(3)}) ÷ ${c.slope.toFixed(3)}</sup> = ${ex.calcQty.toExponential(3)} <small>(${ex.well})</small>` : ''}</p>`;
-        return `<div class="stdc"><h3 style="margin:0 0 6px;font-size:14px"><i class="ld" style="background:${col(c.target)}"></i>${esc(c.target)}</h3>${s}<div class="edsgrid" style="margin-top:8px"><div><span>Slope</span><b>${c.slope.toFixed(3)}</b></div><div><span>Y-intercept</span><b>${c.intercept.toFixed(3)}</b></div><div><span>R²</span><b>${c.r2.toFixed(4)}</b></div><div><span>Efficiency</span><b style="color:var(${good ? '--ok' : '--bad'})">${eff.toFixed(1)} %</b></div><div><span>표준 점</span><b>${c.n}개 (${c.levels}단계)</b></div></div>${fx}</div>`;
-      }).join('') + '</div>';
-      const rs = data.reads.filter((r) => cs.some((c) => c.target === r.target) && !/^STANDARD$/i.test(r.task2));
-      h += '<h3 class="edsh">정량값 (표준곡선으로 계산)</h3><div class="scroll"><table class="drt edsres"><thead><tr><th>Well</th><th>Sample</th><th>Target</th><th>Ct</th><th title="표준곡선에서 이 사이트가 계산한 값: 10^((Ct − 절편) / 기울기)">계산 Quantity</th><th title="장비 소프트웨어가 파일에 저장한 값">장비 Quantity</th></tr></thead><tbody>' + rs.map((r) => `<tr><td>${r.well}</td><td>${esc(r.sample)}</td><td><i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}</td>` + (r.detected ? `<td>${f2(r.ct)}</td><td>${r.calcQty === null || r.calcQty === undefined ? '' : r.calcQty.toExponential(3)}</td>` : '<td class="und">Undetermined</td><td></td>') + `<td>${r.qty === null ? '' : r.qty.toExponential(3)}</td></tr>`).join('') + '</tbody></table></div>';
-    }
-    $('edsStd').innerHTML = h;
-    $('edsMelt').innerHTML = data.melt
-      ? '<p class="note">이 파일에는 <b>융해(Melt) 단계</b>가 있어요. 다만 융해 곡선 데이터의 저장 방식을 확인할 수 있는 파일로 검증하지 못해서 아직 표시하지 않아요. 융해 단계가 있는 .eds(SYBR Green) 샘플을 주시면 Tm 피크까지 지원할게요.</p>'
-      : '<p class="note">이 파일의 PCR 프로그램에는 <b>융해(Melt) 단계가 없어요</b> (TaqMan 프로브 실험). SYBR Green 실험처럼 융해 단계가 있는 파일에서 융해 곡선을 보여줄 예정이에요.</p>';
-  }
-  function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); renderStd(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
-  function rerender() { S.user = applyThresholds(data, S.thr); renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); renderStd(); }
+  function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
+  function rerender() { S.user = applyThresholds(data, S.thr); renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); }
   function refreshSel() { renderPlate(); renderPlot(); renderTable(); $('edsSel').textContent = S.sel.size ? `선택 ${S.sel.size}건` : ''; }
 
   // ---------- 상호작용 ----------
@@ -313,13 +285,14 @@ export function initEds({ $, saveBlob }) {
   $('edsQ').addEventListener('input', () => { S.q = $('edsQ').value; renderTable(); });
   $('edsTgt').addEventListener('change', () => { S.tgt = $('edsTgt').value; renderTable(); });
   $('edsCsv').addEventListener('click', () => {
+    if (!data) { $('edsMsg').className = 'pberr'; $('edsMsg').textContent = '먼저 .eds 파일을 열어 주세요.'; return; }
     const m = applyColumnOps(tableModel());
     let rows = [m.head.map((c) => c.text)].concat(m.rows.map((r) => r.cells.map((c) => c.text)));
     if (S.tr) rows = rows[0].map((_, i) => rows.map((r) => r[i]));
     saveBlob(new Blob(['\ufeff' + rows.map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_results.csv');
   });
   $('edsPng').addEventListener('click', async () => {
-    const svg = $('edsPlot').querySelector('svg'); if (!svg) return;
+    const svg = $('edsPlot').querySelector('svg'); if (!svg) { $('edsMsg').className = 'pberr'; $('edsMsg').textContent = '먼저 .eds 파일을 열어 주세요.'; return; }
     const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' }));
     try { const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); const c = document.createElement('canvas'); c.width = 1560; c.height = 880; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height); saveBlob(await new Promise((res) => c.toBlob(res, 'image/png')), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_amplification.png'); } finally { URL.revokeObjectURL(url); }
   });
@@ -338,7 +311,7 @@ export function initEds({ $, saveBlob }) {
   async function report() {
     if (!data) throw new Error('먼저 .eds 파일을 열어 주세요');
     const svg = $('edsPlot').querySelector('svg'), images = svg ? { plot: await svgToPng(svg) } : {};
-    const model = buildModel(data, { fileName, version: VERSION, program: APP_INFO.name, thr: S.thr, user: S.user, curves: S.std, images });
+    const model = buildModel(data, { fileName, version: VERSION, program: APP_INFO.name, thr: S.thr, user: S.user, images });
     return { model, images, pages: renderPages(model, images), name: baseName() };
   }
   async function exportHwpx() {
