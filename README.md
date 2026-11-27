@@ -28,6 +28,8 @@ A browser tool that takes the Ct values of the BCoV standard curve and the extra
 
 5b. **Probit regression / detection limit (LoD).** From the number of positives out of the replicates tested at each concentration, fits `probit(p) = a + b log10(conc)` by maximum likelihood and reports **C05, C50 and C95** (the concentrations with 5 %, 50 % and 95 % detection) with Fieller 95 % intervals, goodness of fit, a detection-rate curve and warnings (extrapolation, wide intervals, complete separation). Validated against an independent optimiser and a classic published data set. Shown in its own tab with a MedCalc-style dose-response plot (95 % band) and table.
 
+5c. **7500FAST tab.** Drop an Applied Biosystems 7500 Fast `.eds` result file to see the run summary, the 96-well plate layout, amplification curves (ΔRn / Rn, log axis, thresholds, Ct marks), a sample x target mean-Ct table and the result table (CSV export). Read in your browser only.
+
 ### Result forms (HWPX)
 
 6. **Read a filled-in form.** Upload a `.hwpx` result form; Ct values, reported Slope / Y-inter / R^2, recovery rows and institution info are read in your browser (not uploaded).

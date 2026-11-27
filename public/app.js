@@ -10,6 +10,7 @@ import { buildWorkbook } from './xlsx-export.js';
 import { initSidePanel } from './releases.js';
 import { probitFit } from './probit.js';
 import { plotSvg, fmtC, doseTable } from './probit-ui.js';
+import { initEds } from './eds-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 3) => (Number.isFinite(v) ? fixed(v, d) : '–');
@@ -662,31 +663,38 @@ async function pbPngSave() {
   } finally { URL.revokeObjectURL(url); }
 }
 setPb();
+const MENUS = {
+  main: { panel: 'panelMain', btn: 'mtMain', hash: '', theme: '', icon: 'icoWater', color: '#0e8fa0', chip: 'BETA · 숙련도 평가 임시 사용', fx: true, topics: 'topicsMain' },
+  probit: { panel: 'panelProbit', btn: 'mtProbit', hash: '#probit', theme: 'pbtheme', icon: 'icoProbit', color: '#5b4bd5', chip: 'BETA · 검출한계(LoD) 분석', fx: false, topics: 'topicsPb',
+    title: 'Probit 분석기', sub: '농도별 검출(양성) 횟수만 넣으면 C05 · C50 · C95와 Dose-Response 그래프 · 표를 만들어 드려요.', doc: 'Probit 분석기', foot: 'Probit 분석 (LoD) — 농도별 검출률 · C05 / C50 / C95',
+    beta: '<b>베타 테스트 버전</b>입니다. 검출한계(LoD) 분석 결과는 통계 소프트웨어(예: MedCalc, R)와 <b>교차 확인</b>한 뒤 사용해 주세요. 신뢰구간 계산 방식에 따라 값이 다를 수 있어요.',
+    about: '농도별 검출(양성) 횟수로 <b>Probit 회귀 · 검출한계(LoD)</b>를 구하는 분석기. <b>C05 · C50 · C95</b>와 95% 신뢰구간, Dose-Response 그래프 · 표를 만들어요.', abeta: '베타 · 통계 소프트웨어와 교차 확인 권장' },
+  eds: { panel: 'panelEds', btn: 'mtEds', hash: '#7500fast', theme: 'edstheme', icon: 'icoEds', color: '#d9480f', chip: 'BETA · 7500 Fast 결과 보기', fx: false, topics: 'topicsEds',
+    title: '7500 Fast 결과 뷰어', sub: 'Applied Biosystems 7500 Fast의 .eds 결과 파일을 끌어다 놓으면 플레이트 · 증폭 곡선 · Ct 결과를 바로 보여드려요.', doc: '7500 Fast 결과 뷰어', foot: '7500 Fast 결과 뷰어 (.eds) — 플레이트 · 증폭 곡선 · Ct',
+    beta: '<b>베타 테스트 버전</b>입니다. 장비 소프트웨어(7500 Software)의 화면·내보내기 값과 <b>대조해 확인</b>한 뒤 사용해 주세요. 파일은 이 브라우저 안에서만 읽어요.',
+    about: 'Applied Biosystems <b>7500 Fast</b>가 저장한 <b>.eds</b> 결과 파일을 열어 플레이트 배치, 증폭 곡선, Ct 표를 보여주는 뷰어.', abeta: '베타 · 장비 소프트웨어와 대조 권장' },
+};
 function showMenu(m) {
-  const pr = m === 'probit';
-  $('panelMain').hidden = pr; $('panelProbit').hidden = !pr;
-  $('mtMain').classList.toggle('on', !pr); $('mtProbit').classList.toggle('on', pr);
-  const BETA_MAIN = $('betaTxt').innerHTML;
-  showMenu.beta ??= BETA_MAIN; showMenu.title ??= [$('heroTitle').textContent, $('heroSub').textContent];
-  $('heroTitle').textContent = pr ? 'Probit 분석기' : showMenu.title[0];
-  $('heroSub').textContent = pr ? '농도별 검출(양성) 횟수만 넣으면 C05 · C50 · C95와 Dose-Response 그래프 · 표를 만들어 드려요.' : showMenu.title[1];
-  $('fxChip').style.display = pr ? 'none' : ''; $('betaChip').textContent = pr ? 'BETA · 검출한계(LoD) 분석' : 'BETA · 숙련도 평가 임시 사용'; $('footName').hidden = !pr;
-  $('betaTxt').innerHTML = pr ? '<b>베타 테스트 버전</b>입니다. 검출한계(LoD) 분석 결과는 통계 소프트웨어(예: MedCalc, R)와 <b>교차 확인</b>한 뒤 사용해 주세요. 신뢰구간 계산 방식에 따라 값이 다를 수 있어요.' : showMenu.beta;
-  document.body.classList.toggle('pbtheme', pr); $('icoWater').style.display = pr ? 'none' : ''; $('icoProbit').style.display = pr ? '' : 'none'; $('themeColor').content = pr ? '#5b4bd5' : '#0e8fa0';
-  showMenu.about ??= $('aboutTxt').innerHTML; showMenu.abeta ??= $('aboutBeta').textContent;
-  $('aboutTxt').innerHTML = pr ? '농도별 검출(양성) 횟수로 <b>Probit 회귀 · 검출한계(LoD)</b>를 구하는 분석기. <b>C05 · C50 · C95</b>와 95% 신뢰구간, Dose-Response 그래프 · 표를 만들어요.' : showMenu.about;
-  $('aboutBeta').textContent = pr ? '베타 · 통계 소프트웨어와 교차 확인 권장' : showMenu.abeta;
-  $('topicsMain').style.display = pr ? 'none' : ''; $('topicsPb').style.display = pr ? '' : 'none';
-  document.title = pr ? 'Probit 분석기' : showMenu.title[0];
-  try { history.replaceState(null, '', pr ? '#probit' : location.pathname + location.search); } catch {}
+  const cfg = MENUS[m] ?? MENUS.main; m = MENUS[m] ? m : 'main';
+  showMenu.base ??= { title: [$('heroTitle').textContent, $('heroSub').textContent], beta: $('betaTxt').innerHTML, about: $('aboutTxt').innerHTML, abeta: $('aboutBeta').textContent, chip: $('betaChip').textContent };
+  const B = showMenu.base;
+  for (const [k, c] of Object.entries(MENUS)) { $(c.panel).hidden = k !== m; $(c.btn).classList.toggle('on', k === m); if (c.theme) document.body.classList.toggle(c.theme, k === m); $(c.icon).style.display = k === m ? '' : 'none'; if ($(c.topics)) $(c.topics).style.display = k === m ? '' : 'none'; }
+  $('heroTitle').textContent = cfg.title ?? B.title[0]; $('heroSub').textContent = cfg.sub ?? B.title[1];
+  $('fxChip').style.display = cfg.fx ? '' : 'none'; $('betaChip').textContent = cfg.chip;
+  $('footName').hidden = m === 'main'; if (cfg.foot) $('footName').textContent = cfg.foot;
+  $('betaTxt').innerHTML = cfg.beta ?? B.beta; $('aboutTxt').innerHTML = cfg.about ?? B.about; $('aboutBeta').textContent = cfg.abeta ?? B.abeta;
+  $('themeColor').content = cfg.color; document.title = cfg.doc ?? B.title[0];
+  try { history.replaceState(null, '', cfg.hash || location.pathname + location.search); } catch {}
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));
+$('mtEds').addEventListener('click', () => showMenu('eds'));
 $('mtProbit').addEventListener('click', () => { showMenu('probit'); recalcPb(); });
 $('pbCi').addEventListener('change', recalc);
 const pbTsv = (sep) => ['Probability', 'Dose', '95% CI lower', '95% CI upper'].join(sep) + '\n' + pbRows.map(([p, c]) => [p.toFixed(3), c.c, c.bounded ? c.lo : '', c.bounded ? c.hi : ''].join(sep)).join('\n');
 $('pbCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(pbTsv('\t')); $('pbCopy').textContent = '✅ 복사됨'; setTimeout(() => { $('pbCopy').textContent = '📋 표 복사'; }, 1500); } catch { $('pbCopy').textContent = '복사 실패'; } });
 $('pbCsv').addEventListener('click', () => saveBlob(new Blob(['\ufeff' + pbTsv(',')], { type: 'text/csv;charset=utf-8' }), 'Probit_dose_response.csv'));
-if (location.hash === '#probit') showMenu('probit');
+if (location.hash === '#probit') showMenu('probit'); else if (location.hash === '#7500fast') showMenu('eds');
+initEds({ $, saveBlob });
 
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {
