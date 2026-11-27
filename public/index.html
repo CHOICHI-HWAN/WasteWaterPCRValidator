@@ -445,6 +445,8 @@
     <h3 style="margin:18px 0 8px;font-size:15px">Dose-Response table</h3>
     <div class="scroll" id="pbTable"></div>
     <div style="text-align:right;margin-top:8px"><button id="pbCopy">📋 표 복사</button> <button id="pbCsv">⬇️ CSV 저장</button></div>
+    <div class="row" style="margin:14px 0 0"><button id="pbPreview">👀 결과 보고서 미리보기 (인쇄 · PDF · PNG)</button><button id="pbHwpx" class="primary">📝 HWPX로 내보내기</button></div>
+    <p class="note" id="pbExpMsg"></p>
   </section>
   </div>
   <div id="panelEds" hidden>
@@ -553,6 +555,8 @@
         <button class="dlitem" data-tabs="main" id="dlCsv" type="button"><span class="ai">🗒️</span><span>표준곡선 Ct CSV<small>엑셀에서 열림</small></span></button>
         <button class="dlitem" data-tabs="main" id="dlPlot" type="button"><span class="ai">🖼️</span><span>표준곡선 그래프 PNG<small>2074 × 1212</small></span></button>
         <button class="dlitem" data-tabs="probit" id="dlPb" type="button" hidden><span class="ai">📈</span><span>Probit 검출률 곡선 PNG<small>C05 · C50 · C95 표시</small></span></button>
+        <button class="dlitem" data-tabs="probit" id="dlPbHwpx" type="button" hidden><span class="ai">📝</span><span>Probit 결과서 HWPX<small>조건 · 자료 · C05/C50/C95 · 그래프 · 표</small></span></button>
+        <button class="dlitem" data-tabs="probit" id="dlPbPreview" type="button" hidden><span class="ai">👀</span><span>결과서 미리보기 · PDF · PNG<small>인쇄도 가능</small></span></button>
         <button class="dlitem" data-tabs="probit" id="dlPbCsv" type="button" hidden><span class="ai">🗒️</span><span>Dose-Response 표 CSV<small>확률별 용량과 95% 신뢰구간</small></span></button>
         <button class="dlitem" data-tabs="eds" id="dlEdsHwpx" type="button" hidden><span class="ai">📝</span><span>7500FAST 결과서 HWPX<small>임계값 · 결과 · 증폭 곡선 포함</small></span></button>
         <button class="dlitem" data-tabs="eds" id="dlEdsPreview" type="button" hidden><span class="ai">👀</span><span>결과서 미리보기 · PDF · PNG<small>인쇄도 가능</small></span></button>

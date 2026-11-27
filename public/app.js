@@ -11,6 +11,9 @@ import { initSidePanel } from './releases.js';
 import { probitFit } from './probit.js';
 import { plotSvg, fmtC, doseTable } from './probit-ui.js';
 import { initEds } from './eds-ui.js';
+import { buildProbitModel, svgToPng } from './probit-report.js';
+import { renderPages, buildHwpx } from './eds-report.js';
+import { APP_INFO } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v, d = 3) => (Number.isFinite(v) ? fixed(v, d) : '–');
@@ -522,6 +525,7 @@ function cell(newS, old, flag, attrs = '') {
 }
 
 let pvMode = 'lin';
+const pvName = (ext) => (pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.${ext}` : pvMode === 'pb' ? `Probit_LoD_결과서.${ext}` : `BCoV_숙련도평가_결과서.${ext}`);
 async function renderPreview() {
   pvMode = 'lin'; $('pvDiff').closest('label').hidden = false;
   try { await ensureTemplate(); } catch (e) { $('pvNote').textContent = e.message; }
@@ -607,7 +611,7 @@ async function downloadPng() {
     const c = out.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, out.width, out.height);
     let y = gap; cvs.forEach((cv) => { c.drawImage(cv, gap + (W - cv.width) / 2, y); y += cv.height + gap; });
     const blob = await new Promise((res, rej) => out.toBlob((b) => (b ? res(b) : rej(new Error('이미지 생성 실패'))), 'image/png'));
-    saveBlob(blob, pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.png` : 'BCoV_숙련도평가_결과서.png');
+    saveBlob(blob, pvName('png'));
   } catch (e) { $('pvNote').textContent = 'PNG 저장 실패: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = old; }
 }
@@ -664,6 +668,33 @@ async function pbPngSave() {
     saveBlob(await new Promise((res) => c.toBlob(res, 'image/png')), 'Probit_LoD.png');
   } finally { URL.revokeObjectURL(url); }
 }
+
+// ---- Probit 결과 보고서 (미리보기 · HWPX) ----
+async function pbReport() {
+  if (!pbLast) throw new Error('먼저 자료를 입력해 결과를 만들어 주세요');
+  const svg = $('pbPlot').querySelector('svg'), images = svg ? { plot: await svgToPng(svg) } : {};
+  const model = buildProbitModel(pbLast, { unit: $('pbUnit').value.trim(), ci: $('pbCi').value, version: VERSION, program: APP_INFO.name });
+  return { model, images, pages: renderPages(model, images) };
+}
+async function pbPreview() {
+  const msg = $('pbExpMsg'); msg.textContent = '';
+  try {
+    const r = await pbReport();
+    pvMode = 'pb'; $('pvDiff').closest('label').hidden = true; $('pvBody').innerHTML = `<div class="paper">${r.pages.join('')}</div>`;
+    $('pvNote').innerHTML = 'Probit 분석(LoD) 결과 보고서 · <b>HWPX로 내보내기</b>, 인쇄, PDF, PNG를 쓸 수 있어요.';
+    $('preview').showModal();
+  } catch (e) { msg.textContent = '미리보기 실패: ' + e.message; }
+}
+async function pbExport() {
+  const msg = $('pbExpMsg'); msg.textContent = 'HWPX 만드는 중…';
+  try {
+    const r = await pbReport();
+    saveBlob(await buildHwpx(r.model, r.images, { JSZip: window.JSZip, program: APP_INFO.name }), 'Probit_LoD_결과서.hwpx');
+    msg.textContent = '✅ HWPX로 저장했어요. 한글에서 열어 확인해 주세요 (아직 한글에서 직접 열어 보지는 못했어요).'; $('pvNote').textContent = '';
+  } catch (e) { msg.textContent = 'HWPX 내보내기 실패: ' + e.message; }
+}
+$('pbPreview').addEventListener('click', pbPreview);
+$('pbHwpx').addEventListener('click', pbExport);
 setPb();
 const MENUS = {
   main: { panel: 'panelMain', btn: 'mtMain', hash: '', theme: '', icon: 'icoWater', color: '#0e8fa0', chip: 'BETA · 숙련도 평가 임시 사용', fx: true, topics: 'topicsMain' },
@@ -757,7 +788,7 @@ async function downloadPdf() {
       if (i) pdf.addPage();
       pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', 10 + (maxW - w) / 2, 10, w, h);
     }
-    pdf.save(pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.pdf` : 'BCoV_숙련도평가_결과서.pdf');
+    pdf.save(pvName('pdf'));
   } catch (e) { $('pvNote').textContent = 'PDF 저장 실패: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = old; }
 }
@@ -832,7 +863,7 @@ $('plotPng').addEventListener('click', downloadPlotPng);
 $('btnXlsx').addEventListener('click', downloadXlsx);
 document.addEventListener('click', (e) => { if (e.target.id === 'stockReset') { const s = $('stock'); s.value = String(BASE_STOCK); s.dispatchEvent(new Event('input', { bubbles: true })); refreshNum(); } });
 $('btnExport').addEventListener('click', doExport);
-$('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : doExport()));
+$('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : pvMode === 'pb' ? pbExport() : doExport()));
 
 // 정보 창 (제작자 · 라이선스 · 서드파티 · 변경 이력)
 $('ver').textContent = `v${VERSION}`;
@@ -881,6 +912,8 @@ $('dlPb').addEventListener('click', pbPngSave);
 $('dlPbCsv').addEventListener('click', () => $('pbCsv').click());
 $('dlEdsHwpx').addEventListener('click', () => $('edsHwpx').click());
 $('dlEdsPreview').addEventListener('click', () => $('edsPreview').click());
+$('dlPbPreview').addEventListener('click', () => $('pbPreview').click());
+$('dlPbHwpx').addEventListener('click', () => $('pbHwpx').click());
 $('dlEdsCsv').addEventListener('click', () => $('edsCsv').click());
 $('dlEdsPng').addEventListener('click', () => $('edsPng').click());
 // exe(로컬 서버) 모드: 브라우저 탭이 열려 있는 동안 신호를 보내고, 마지막 탭을 닫으면 서버가 스스로 종료된다.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 import assert from 'node:assert/strict';
+import { buildProbitModel } from '../public/probit-report.js';
+import { renderPages } from '../public/eds-report.js';
 import { erfc, normCdf, normQuantile, chi2sf, probitFit, wilson } from '../public/probit.js';
 
 const close = (a, b, rel = 1e-9, abs = 1e-12) => Math.abs(a - b) <= Math.max(abs, rel * Math.abs(b));
@@ -96,4 +98,16 @@ console.log('probit ok', { a: +f1.a.toFixed(4), b: +f1.b.toFixed(4), C05: +f1.C0
   assert.ok(Math.abs(Math.log10(pf.lo / fl.lo)) < 0.15 && Math.abs(Math.log10(pf.hi / fl.hi)) < 0.15, 'profile ≈ Fieller');
   const b = g.band(30).filter((x) => x.lo !== null);
   assert.ok(b.length > 20 && b.every((x) => x.lo <= x.x && x.x <= x.hi), 'band brackets the curve');
+}
+
+// 보고서 모델: 구성 블록과 쪽 나누기
+{
+  const f = probitFit([1000, 100, 10, 1, 0.1].map((conc, i) => ({ conc, n: 25, k: [25, 22, 16, 6, 0][i] })));
+  const m = buildProbitModel(f, { unit: 'copies/µL', ci: 'fieller', version: 't', program: 'P' });
+  assert.equal(m[0].t, 'title'); assert.ok(m.some((b) => b.t === 'approval'));
+  assert.equal(m.filter((b) => b.t === 'table').length, 3, '입력 자료 · C05/C50/C95 · Dose-Response 표');
+  assert.equal(m.find((b) => b.t === 'img').id, 'plot');
+  const c = m.filter((b) => b.t === 'table')[1].rows;
+  assert.deepEqual(c.map((r) => r[0]), ['C05', 'C50', 'C95']);
+  assert.ok(renderPages(m, { plot: { dataUrl: 'data:image/png;base64,AA' } }).length >= 2);
 }
