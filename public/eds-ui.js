@@ -138,12 +138,21 @@ export function initEds({ $, saveBlob }) {
     const q = S.q.trim().toLowerCase();
     return data.reads.filter((r) => (!S.tgt || r.target === S.tgt) && (!q || `${r.well} ${r.sample} ${r.target}`.toLowerCase().includes(q)));
   }
+  const TCOLS = ['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD'];
+  const cells = (r) => {
+    const rep = data.detectors.find((d) => d.name === r.target)?.reporter ?? '';
+    return [r.well, esc(r.sample), `<i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}`, esc(rep), esc(r.task),
+      r.detected ? f2(r.ct) : '<span class="und">Undetermined</span>', r.detected ? f2(r.ctMean) : '', r.detected ? f2(r.ctSd) : ''];
+  };
   function renderTable() {
     const rs = visibleTable();
-    const det = (r) => data.detectors.find((d) => d.name === r.target);
-    $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr><th>Well</th><th>Sample</th><th>Target</th><th>Reporter</th><th>Task</th><th>Ct</th><th>Ct Mean</th><th>Ct SD</th></tr></thead><tbody>' + rs.map((r) =>
-      `<tr data-k="${key(r)}" class="${S.sel.has(key(r)) ? 'key' : ''}"><td>${r.well}</td><td>${esc(r.sample)}</td><td><i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}</td><td>${esc(det(r)?.reporter ?? '')}</td><td>${esc(r.task)}</td>` +
-      (r.detected ? `<td>${f2(r.ct)}</td>` : '<td class="und">Undetermined</td>') + `<td>${r.detected ? f2(r.ctMean) : ''}</td><td>${r.detected ? f2(r.ctSd) : ''}</td></tr>`).join('') + '</tbody></table>';
+    if (!S.tr) {
+      $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr>' + TCOLS.map((c) => `<th>${c}</th>`).join('') + '</tr></thead><tbody>' +
+        rs.map((r) => `<tr data-k="${key(r)}" class="${S.sel.has(key(r)) ? 'key' : ''}">` + cells(r).map((c) => `<td>${c}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    } else { // 행↔열 바꾸기: 항목이 세로, 각 결과가 가로
+      const cs = rs.map(cells);
+      $('edsTable').innerHTML = '<table class="drt edsres edstr"><tbody>' + TCOLS.map((name, i) => `<tr><th>${name}</th>` + rs.map((r, j) => `<td data-k="${key(r)}" class="${S.sel.has(key(r)) ? 'sel' : ''}">${cs[j][i]}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    }
     $('edsCount').textContent = `${rs.length} / ${data.reads.length}건`;
   }
   function renderPivot() {
@@ -214,7 +223,7 @@ export function initEds({ $, saveBlob }) {
     else { S.sel.clear(); hit.forEach((r) => S.sel.add(key(r))); }
     drag = null; refreshSel();
   });
-  $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-k]'); if (!tr) return; const k = tr.dataset.k; S.sel.has(k) ? S.sel.delete(k) : S.sel.add(k); refreshSel(); });
+  $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('[data-k]'); if (!tr) return; const k = tr.dataset.k; S.sel.has(k) ? S.sel.delete(k) : S.sel.add(k); refreshSel(); });
   $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
   $('edsSig').addEventListener('change', () => { S.sig = $('edsSig').value; renderPlot(); });
   $('edsLog').addEventListener('change', () => { S.log = $('edsLog').checked; renderPlot(); });
@@ -223,10 +232,12 @@ export function initEds({ $, saveBlob }) {
   $('edsYmin').addEventListener('input', yIn); $('edsYmax').addEventListener('input', yIn);
   $('edsYauto').addEventListener('click', () => { $('edsYmin').value = ''; $('edsYmax').value = ''; yIn(); });
   $('edsClearSel').addEventListener('click', () => { S.sel.clear(); refreshSel(); });
+  $('edsTr').addEventListener('change', () => { S.tr = $('edsTr').checked; renderTable(); });
   $('edsQ').addEventListener('input', () => { S.q = $('edsQ').value; renderTable(); });
   $('edsTgt').addEventListener('change', () => { S.tgt = $('edsTgt').value; renderTable(); });
   $('edsCsv').addEventListener('click', () => {
-    const rows = [['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD']].concat(visibleTable().map((r) => [r.well, r.sample, r.target, data.detectors.find((d) => d.name === r.target)?.reporter ?? '', r.task, r.detected ? r.ct : 'Undetermined', r.detected ? (r.ctMean ?? '') : '', r.detected ? (r.ctSd ?? '') : '']));
+    let rows = [['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD']].concat(visibleTable().map((r) => [r.well, r.sample, r.target, data.detectors.find((d) => d.name === r.target)?.reporter ?? '', r.task, r.detected ? r.ct : 'Undetermined', r.detected ? (r.ctMean ?? '') : '', r.detected ? (r.ctSd ?? '') : '']));
+    if (S.tr) rows = rows[0].map((_, i) => rows.map((r) => r[i]));
     saveBlob(new Blob(['﻿' + rows.map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_results.csv');
   });
   $('edsPng').addEventListener('click', async () => {
