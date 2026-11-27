@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
-export const VERSION = '0.27.1';
+export const VERSION = '0.28.0';
 export const APP_INFO = {
   name: '하수 PCR 검증기',
   stage: 'beta', // 숙련도 평가용 임시 사용 베타 버전

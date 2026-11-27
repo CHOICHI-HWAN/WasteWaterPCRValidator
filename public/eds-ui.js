@@ -12,7 +12,7 @@ const dur = (a, b) => { if (!a || !b || b < a) return ''; const m = Math.round((
 
 export function initEds({ $, saveBlob }) {
   let data = null, fileName = '';
-  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '' };
+  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '', view: 'wide', val: 'ct' };
   const col = (t) => PALETTE[Math.max(0, data.detectors.findIndex((d) => d.name === t)) % PALETTE.length];
 
   // ---------- 파일 읽기 ----------
@@ -138,22 +138,42 @@ export function initEds({ $, saveBlob }) {
     const q = S.q.trim().toLowerCase();
     return data.reads.filter((r) => (!S.tgt || r.target === S.tgt) && (!q || `${r.well} ${r.sample} ${r.target}`.toLowerCase().includes(q)));
   }
-  const TCOLS = ['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD'];
-  const cells = (r) => {
-    const rep = data.detectors.find((d) => d.name === r.target)?.reporter ?? '';
-    return [r.well, esc(r.sample), `<i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}`, esc(rep), esc(r.task),
-      r.detected ? f2(r.ct) : '<span class="und">Undetermined</span>', r.detected ? f2(r.ctMean) : '', r.detected ? f2(r.ctSd) : ''];
+  // 결과표 모델: { head: [{html,text}], rows: [{keys:[...], cells:[{html,text}]}] } — 화면과 CSV가 같은 모델을 쓴다
+  const cell = (html, text = html) => ({ html, text: String(text ?? '') });
+  const valOf = (r) => {
+    const v = S.val === 'mean' ? r.ctMean : S.val === 'sd' ? r.ctSd : r.ct;
+    if (!r.detected) return cell('<span class="und">Undetermined</span>', 'Undetermined');
+    return v === null || v === undefined ? cell('', '') : cell(f2(v), v);
   };
-  function renderTable() {
+  function tableModel() {
     const rs = visibleTable();
-    if (!S.tr) {
-      $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr>' + TCOLS.map((c) => `<th>${c}</th>`).join('') + '</tr></thead><tbody>' +
-        rs.map((r) => `<tr data-k="${key(r)}" class="${S.sel.has(key(r)) ? 'key' : ''}">` + cells(r).map((c) => `<td>${c}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
-    } else { // 행↔열 바꾸기: 항목이 세로, 각 결과가 가로
-      const cs = rs.map(cells);
-      $('edsTable').innerHTML = '<table class="drt edsres edstr"><tbody>' + TCOLS.map((name, i) => `<tr><th>${name}</th>` + rs.map((r, j) => `<td data-k="${key(r)}" class="${S.sel.has(key(r)) ? 'sel' : ''}">${cs[j][i]}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    if (S.view === 'list') {
+      const head = ['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD'].map((x) => cell(x));
+      return { head, rows: rs.map((r) => {
+        const rep = data.detectors.find((d) => d.name === r.target)?.reporter ?? '';
+        return { keys: [key(r)], cells: [cell(r.well), cell(esc(r.sample), r.sample), cell(`<i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}`, r.target), cell(esc(rep), rep), cell(esc(r.task), r.task),
+          r.detected ? cell(f2(r.ct), r.ct) : cell('<span class="und">Undetermined</span>', 'Undetermined'), cell(r.detected ? f2(r.ctMean) : '', r.detected ? r.ctMean : ''), cell(r.detected ? f2(r.ctSd) : '', r.detected ? r.ctSd : '')] };
+      }) };
     }
-    $('edsCount').textContent = `${rs.length} / ${data.reads.length}건`;
+    // 웰 × 표적: 표적을 열로
+    const tg = data.detectors.map((d) => d.name).filter((n) => rs.some((r) => r.target === n));
+    const head = [cell('Well'), cell('Sample'), ...tg.map((n) => { const d = data.detectors.find((x) => x.name === n); return cell(`<i class="ld" style="background:${col(n)}"></i>${esc(n)}<small class="rep">${esc(d?.reporter ?? '')}</small>`, n); })];
+    const byWell = new Map();
+    for (const r of rs) (byWell.get(r.idx) ?? byWell.set(r.idx, []).get(r.idx)).push(r);
+    const rows = [...byWell.entries()].sort((x, y) => x[0] - y[0]).map(([, g]) => ({ keys: g.map(key), cells: [cell(g[0].well), cell(esc(g[0].sample), g[0].sample), ...tg.map((n) => { const r = g.find((x) => x.target === n); return r ? valOf(r) : cell('', ''); })] }));
+    return { head, rows };
+  }
+  function renderTable() {
+    const m = tableModel(), on = (keys) => keys.some((k) => S.sel.has(k));
+    const dk = (keys) => `data-k="${keys.join(';')}"`;
+    if (!S.tr) {
+      $('edsTable').innerHTML = '<table class="drt edsres"><thead><tr>' + m.head.map((c) => `<th>${c.html}</th>`).join('') + '</tr></thead><tbody>' +
+        m.rows.map((r) => `<tr ${dk(r.keys)} class="${on(r.keys) ? 'key' : ''}">` + r.cells.map((c) => `<td>${c.html}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    } else {
+      $('edsTable').innerHTML = '<table class="drt edsres edstr"><tbody>' + m.head.map((h, i) => `<tr><th>${h.html}</th>` + m.rows.map((r) => `<td ${dk(r.keys)} class="${on(r.keys) ? 'sel' : ''}">${r.cells[i].html}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+    }
+    $('edsCount').textContent = S.view === 'list' ? `${m.rows.length} / ${data.reads.length}건` : `${m.rows.length}웰`;
+    $('edsVal').disabled = S.view === 'list';
   }
   function renderPivot() {
     const sm = summarize(data), samples = data.samples.map((s) => s.name).filter((n) => sm.some((x) => x.sample === n)), tg = data.detectors.map((d) => d.name).filter((n) => sm.some((x) => x.target === n));
@@ -223,7 +243,7 @@ export function initEds({ $, saveBlob }) {
     else { S.sel.clear(); hit.forEach((r) => S.sel.add(key(r))); }
     drag = null; refreshSel();
   });
-  $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('[data-k]'); if (!tr) return; const k = tr.dataset.k; S.sel.has(k) ? S.sel.delete(k) : S.sel.add(k); refreshSel(); });
+  $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('[data-k]'); if (!tr) return; const ks = tr.dataset.k.split(';'), all = ks.every((k) => S.sel.has(k)); ks.forEach((k) => (all ? S.sel.delete(k) : S.sel.add(k))); refreshSel(); });
   $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
   $('edsSig').addEventListener('change', () => { S.sig = $('edsSig').value; renderPlot(); });
   $('edsLog').addEventListener('change', () => { S.log = $('edsLog').checked; renderPlot(); });
@@ -232,13 +252,16 @@ export function initEds({ $, saveBlob }) {
   $('edsYmin').addEventListener('input', yIn); $('edsYmax').addEventListener('input', yIn);
   $('edsYauto').addEventListener('click', () => { $('edsYmin').value = ''; $('edsYmax').value = ''; yIn(); });
   $('edsClearSel').addEventListener('click', () => { S.sel.clear(); refreshSel(); });
+  $('edsView').addEventListener('change', () => { S.view = $('edsView').value; renderTable(); });
+  $('edsVal').addEventListener('change', () => { S.val = $('edsVal').value; renderTable(); });
   $('edsTr').addEventListener('change', () => { S.tr = $('edsTr').checked; renderTable(); });
   $('edsQ').addEventListener('input', () => { S.q = $('edsQ').value; renderTable(); });
   $('edsTgt').addEventListener('change', () => { S.tgt = $('edsTgt').value; renderTable(); });
   $('edsCsv').addEventListener('click', () => {
-    let rows = [['Well', 'Sample', 'Target', 'Reporter', 'Task', 'Ct', 'Ct Mean', 'Ct SD']].concat(visibleTable().map((r) => [r.well, r.sample, r.target, data.detectors.find((d) => d.name === r.target)?.reporter ?? '', r.task, r.detected ? r.ct : 'Undetermined', r.detected ? (r.ctMean ?? '') : '', r.detected ? (r.ctSd ?? '') : '']));
+    const m = tableModel();
+    let rows = [m.head.map((c) => c.text)].concat(m.rows.map((r) => r.cells.map((c) => c.text)));
     if (S.tr) rows = rows[0].map((_, i) => rows.map((r) => r[i]));
-    saveBlob(new Blob(['﻿' + rows.map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_results.csv');
+    saveBlob(new Blob(['\ufeff' + rows.map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), (fileName.replace(/\.eds$/i, '') || '7500FAST') + '_results.csv');
   });
   $('edsPng').addEventListener('click', async () => {
     const svg = $('edsPlot').querySelector('svg'); if (!svg) return;
