@@ -95,7 +95,7 @@ export async function buildWorkbook(JSZipCtor, st, opt = {}) {
 
   // ================= 레이아웃 (열: A=여백, B..I = 8열 격자, J=여백) =================
   for (let c = 1; c <= 8; c++) { blank(1, c, X.bannerFill); blank(2, c, X.bannerFill); }
-  txt(1, 1, 'HeavelyLab(LabPhobia) · 직선성 검증', X.banner); merge(1, 1, 1, 8, X.bannerFill); rowH.set(1, 40);
+  txt(1, 1, 'HeavenlyLab(LabPhobia) · 직선성 검증', X.banner); merge(1, 1, 1, 8, X.bannerFill); rowH.set(1, 40);
   txt(2, 1, `BCoV 표준곡선 · 증폭효율 · 회수율 — 엑셀 계산 시트  |  v${V} BETA  |  매크로 없음(수식만 사용)`, X.bannerSub); merge(2, 1, 2, 8, X.bannerFill); rowH.set(2, 22);
   rowH.set(3, 8);
   txt(4, 1, `⚠ 베타 테스트 버전 · 숙련도 평가용 임시 사용  |  녹색 칸에 입력하면 나머지는 자동 계산됩니다.  |  계산 결과는 제출 전에 반드시 직접 검토·확인하세요.`, X.notice); merge(4, 1, 4, 8, X.notice); rowH.set(4, 22);
@@ -248,7 +248,7 @@ export async function buildWorkbook(JSZipCtor, st, opt = {}) {
     fstr(r, 7, `IF(${D}="","",IF(ABS(${D})<=${addr(r, 6)}+0.000000001,"일치","불일치"))`, diff === '' ? '' : (Math.abs(diff) <= tol.stat + 1e-9 ? '일치' : '불일치'), X.judge); merge(r, 7, r, 8, X.judge);
   });
   const lastStat = sh + 3, foot = lastStat + 2;
-  txt(foot, 1, `HeavelyLab(LabPhobia) · 직선성 검증 v${V} BETA  ·  제작: 치치박사&박박사  ·  GPL v3  ·  https://wwpcr.web.app`, X.foot); merge(foot, 1, foot, 8, X.foot);
+  txt(foot, 1, `HeavenlyLab(LabPhobia) · 직선성 검증 v${V} BETA  ·  제작: 치치박사&박박사  ·  GPL v3  ·  https://wwpcr.web.app`, X.foot); merge(foot, 1, foot, 8, X.foot);
   txt(foot + 1, 1, '이 파일은 매크로 없이 엑셀 수식만 사용합니다. 계산 결과는 제출 전에 반드시 직접 검토·확인하세요.', X.foot); merge(foot + 1, 1, foot + 1, 8, X.foot);
 
   // ================= 회귀용 보조 시트 =================
@@ -327,7 +327,7 @@ export async function buildWorkbook(JSZipCtor, st, opt = {}) {
     ['측정값 (copies/mL) = 10^((Ct − Y-inter) / Slope)  ·  회수율 (%) = 측정값 / Spiked × 100', gTxt],
     ['SD = STDEVP(모집단) 또는 STDEV(표본)  ·  RSD (%) = SD / 평균 × 100', gTxt],
     ['', 0],
-    [`HeavelyLab(LabPhobia) · 직선성 검증 v${V} (베타 · 숙련도 평가용 임시 사용)  ·  제작: 치치박사&박박사  ·  라이선스: GPL v3`, gMut],
+    [`HeavenlyLab(LabPhobia) · 직선성 검증 v${V} (베타 · 숙련도 평가용 임시 사용)  ·  제작: 치치박사&박박사  ·  라이선스: GPL v3`, gMut],
     ['계산 결과는 제출 전에 반드시 직접 검토·확인하세요.', gMut],
   ];
   const sheet2 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -352,7 +352,7 @@ export async function buildWorkbook(JSZipCtor, st, opt = {}) {
   add('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`);
   add('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>HeavelyLab(LabPhobia) · 직선성 검증 — BCoV 표준곡선·회수율</dc:title><dc:creator>HeavelyLab(LabPhobia) · 직선성 검증 (치치박사&amp;박박사)</dc:creator></cp:coreProperties>`);
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>HeavenlyLab(LabPhobia) · 직선성 검증 — BCoV 표준곡선·회수율</dc:title><dc:creator>HeavenlyLab(LabPhobia) · 직선성 검증 (치치박사&amp;박박사)</dc:creator></cp:coreProperties>`);
   add('docProps/app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Microsoft Excel</Application></Properties>`);
   add('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

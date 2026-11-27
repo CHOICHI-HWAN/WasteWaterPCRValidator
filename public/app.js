@@ -685,7 +685,7 @@ function showMenu(m) {
   $('fxChip').style.display = cfg.fx ? '' : 'none'; $('betaChip').textContent = cfg.chip;
   $('footName').hidden = m === 'main'; if (cfg.foot) $('footName').textContent = cfg.foot;
   $('betaTxt').innerHTML = cfg.beta ?? B.beta; $('aboutTxt').innerHTML = cfg.about ?? B.about; $('aboutBeta').textContent = cfg.abeta ?? B.abeta;
-  $('themeColor').content = cfg.color; document.title = (cfg.doc ?? B.title[0]) + ' · HeavelyLab(LabPhobia)';
+  $('themeColor').content = cfg.color; document.title = (cfg.doc ?? B.title[0]) + ' · HeavenlyLab(LabPhobia)';
   try { history.replaceState(null, '', cfg.hash || location.pathname + location.search); } catch {}
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));
@@ -835,7 +835,7 @@ $('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : 
 
 // 정보 창 (제작자 · 라이선스 · 서드파티 · 변경 이력)
 $('ver').textContent = `v${VERSION}`;
-$('aboutTitle').textContent = `HeavelyLab(LabPhobia) v${VERSION} (베타)`;
+$('aboutTitle').textContent = `HeavenlyLab(LabPhobia) v${VERSION} (베타)`;
 async function showDoc(name) {
   $('aboutDoc').textContent = '불러오는 중…';
   try { const r = await fetch(name, { cache: 'no-cache' }); $('aboutDoc').textContent = r.ok ? await r.text() : `${name}을 불러오지 못했습니다`; }

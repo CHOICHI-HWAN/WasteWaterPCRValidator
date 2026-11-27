@@ -1,4 +1,4 @@
-# HeavelyLab (LabPhobia)
+# HeavenlyLab (LabPhobia)
 
 *Formerly "WasteWater PCR Validator" (repository name unchanged).* This program is a small lab toolbox with three tabs: **Linearity Test** (standard curve, efficiency, recovery), **Probit analysis (LoD)** and **7500FAST** (open `.eds` run files).
 

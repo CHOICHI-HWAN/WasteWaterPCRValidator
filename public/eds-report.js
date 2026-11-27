@@ -122,7 +122,7 @@ const X = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': 
 const HH = 'http://www.hancom.co.kr/hwpml/2011/head', HC = 'http://www.hancom.co.kr/hwpml/2011/core';
 const TEXT_W = 48190; // A4 세로, 좌우 여백 5669 를 뺀 본문 폭 (HWPUNIT)
 
-export async function buildHwpx(model, images, { JSZip, templateUrl = 'template.hwpx', program = 'HeavelyLab(LabPhobia)' } = {}) {
+export async function buildHwpx(model, images, { JSZip, templateUrl = 'template.hwpx', program = 'HeavenlyLab(LabPhobia)' } = {}) {
   const res = await fetch(templateUrl); if (!res.ok) throw new Error('서식(template.hwpx)을 불러오지 못했어요');
   const zip = await JSZip.loadAsync(await res.arrayBuffer());
   let hxml = await zip.file('Contents/header.xml').async('string');
