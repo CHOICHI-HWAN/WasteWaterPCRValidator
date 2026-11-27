@@ -21,3 +21,17 @@ assert.equal(d.reads.length, 2); assert.equal(d.reads[0].well, 'B5'); assert.dee
 assert.equal(d.reads[0].detected, true); assert.equal(d.reads[1].detected, false); assert.equal(d.cycles, 3);
 const s = summarize(d)[0]; assert.equal(s.n, 2); assert.equal(s.pos, 1); assert.equal(s.mean, 16.5);
 console.log('eds tests passed');
+
+// 표준곡선 정량: Ct = -3.32 log10(q) + 38  → 기울기·절편·효율·정량값
+{
+  const { standardCurves } = await import('../public/eds.js');
+  const mk = (idx, task, q, ct) => ({ idx, well: 'A' + idx, target: 'T', task2: task, setQty: q, ct, detected: ct < 40 });
+  const reads = [1e6, 1e5, 1e4, 1e3].flatMap((q, i) => [0, 1].map((k) => mk(i * 2 + k, 'STANDARD', q, -3.32 * Math.log10(q) + 38)));
+  reads.push(mk(20, 'UNKNOWN', 1, -3.32 * Math.log10(5e4) + 38), mk(21, 'UNKNOWN', 1, 40));
+  const data = { detectors: [{ name: 'T' }], reads };
+  const [c] = standardCurves(data);
+  assert.ok(Math.abs(c.slope + 3.32) < 1e-9 && Math.abs(c.intercept - 38) < 1e-9 && Math.abs(c.r2 - 1) < 1e-12);
+  assert.ok(Math.abs(c.efficiency - 100.1) < 0.2);
+  assert.ok(Math.abs(reads[8].calcQty / 5e4 - 1) < 1e-9); assert.equal(reads[9].calcQty, null);
+  console.log('std tests passed');
+}

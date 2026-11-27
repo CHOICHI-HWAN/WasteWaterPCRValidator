@@ -185,6 +185,9 @@
   .edsplate .dots i, .edslegend .dot { width:9px; height:9px; border-radius:50%; background:var(--c,#555); display:inline-block; } .edsplate .dots i.nd { background:transparent; border:2px solid var(--c); width:9px; height:9px; box-sizing:border-box; }
   .edslegend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:12.5px; color:var(--mut); } .edslegend .lg { display:inline-flex; gap:5px; align-items:center; } .edslegend .lg i:not(.dot) { width:12px; height:12px; border-radius:4px; display:inline-block; } .edslegend .dot { background:var(--mut); } .edslegend .dot.nd { background:transparent; border:2px solid var(--mut); box-sizing:border-box; }
   .edstip { position:absolute; pointer-events:none; background:#14313b; color:#fff; font-size:12px; line-height:1.5; padding:6px 10px; border-radius:8px; white-space:nowrap; z-index:5; }
+  .edsplate { user-select:none; -webkit-user-select:none; } .edsplate td.drag { outline:3px dashed var(--acc); } .edsplate th[data-r], .edsplate th[data-c], .edsplate th[data-all] { cursor:pointer; } .edsplate th[data-r]:hover, .edsplate th[data-c]:hover, .edsplate th[data-all]:hover { background:var(--accsoft); border-radius:8px; }
+  .edsdet td, .edsdet th { text-align:left; } .edsdet tbody tr { cursor:pointer; } .edsdet tr.off td { opacity:.45; } .stdwrap { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:16px; } .stdc { border:1px solid var(--line); border-radius:14px; padding:12px; }
+  .edsgloss dt { font-weight:800; margin-top:10px; } .edsgloss dd { margin:2px 0 0; color:var(--mut); line-height:1.6; font-size:13.5px; }
   .edsres td, .edsres th { text-align:left; } .edsres tbody tr { cursor:pointer; } .edsres tbody tr:hover td { background:var(--accsoft); } .und { color:var(--mut); font-style:italic; } .ld { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; }
   .layout { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; align-items:start; }
   @media (min-width:1040px) { .layout { grid-template-columns:minmax(0,1fr) 304px; } }
@@ -439,13 +442,13 @@
     <section class="card">
       <div class="chead"><h2 id="edsTitle">실험 요약</h2></div>
       <div id="edsInfo"></div>
-      <h3 class="edsh">검출기 (Target)</h3>
-      <div id="edsDets" class="edschips"></div>
+      <h3 class="edsh">검출기 (Target) 설정</h3>
+      <div class="scroll" id="edsDets"></div>
       <h3 class="edsh">PCR 프로그램</h3>
       <div id="edsProto"></div>
     </section>
     <section class="card">
-      <div class="chead"><h2>🧪 플레이트</h2><span class="hint">웰을 누르면 아래 곡선과 결과표에서 강조돼요. <span id="edsSel"></span></span></div>
+      <div class="chead"><h2>🧪 플레이트</h2><span class="hint">웰을 드래그해 선택하면(Ctrl·Shift = 추가) 아래 곡선과 결과표에서 강조돼요. <span id="edsSel"></span></span></div>
       <div class="scroll" id="edsPlate"></div>
       <div id="edsLegend" class="edslegend"></div>
     </section>
@@ -453,6 +456,7 @@
       <div class="chead"><h2>📈 증폭 곡선</h2><span class="hint">점선은 검출기별 임계값, 빈 원은 Ct 위치예요. 곡선 위에 마우스를 올려 보세요.</span></div>
       <div class="row">
         <label>신호<select id="edsSig" class="txt"><option value="drn">ΔRn</option><option value="rn">Rn</option></select></label>
+        <label>Y축 최소<input id="edsYmin" class="txt" type="text" inputmode="decimal" placeholder="자동" style="width:110px"></label><label>Y축 최대<input id="edsYmax" class="txt" type="text" inputmode="decimal" placeholder="자동" style="width:110px"></label><button id="edsYauto" title="Y축 범위를 자동으로">↺ 자동</button>
         <label class="chk"><input type="checkbox" id="edsLog"> 세로축 로그</label>
         <label class="chk"><input type="checkbox" id="edsOnly"> 선택한 웰만 보기</label>
         <button id="edsClearSel">선택 해제</button>
@@ -461,9 +465,34 @@
       <div class="pbplot" style="position:relative"><div id="edsPlot"></div><div id="edsTip" class="edstip" hidden></div></div>
     </section>
     <section class="card">
+      <div class="chead"><h2>📉 표준곡선 정량</h2><span class="hint">표준(STANDARD) 웰의 Ct와 양으로 기울기 · 절편 · R² · 효율을 구하고, 나머지 웰의 양을 계산해요.</span></div>
+      <div id="edsStd"></div>
+    </section>
+    <section class="card">
+      <div class="chead"><h2>🌡️ 융해 곡선</h2></div>
+      <div id="edsMelt"></div>
+    </section>
+    <section class="card">
       <div class="chead"><h2>🧮 시료 × 검출기 요약</h2><span class="hint">검출된 반복의 평균 Ct (양성 수/반복 수). ND = Undetermined</span></div>
       <div class="scroll" id="edsPivot"></div>
     </section>
+    <details class="card fold">
+      <summary><span class="step" style="background:linear-gradient(135deg,#8aa4af,#5f7a86);box-shadow:none">?</span>용어 설명 — 결과를 읽는 법</summary>
+      <div class="body edsgloss">
+        <dl>
+          <dt>Ct (Threshold Cycle)</dt><dd>형광 신호가 임계값을 처음 넘는 사이클 번호예요. 작을수록 처음에 들어 있던 표적이 많다는 뜻이고, 사이클마다 약 2배씩 늘어나니 Ct가 3.3 줄면 양이 약 10배예요.</dd>
+          <dt>Undetermined (Ct 40)</dt><dd>40사이클 안에 임계값을 넘지 못한 웰. 파일에는 Ct 40.0으로 저장되며 이 화면에서는 “Undetermined / ND(미검출)”로 보여요.</dd>
+          <dt>Rn · ΔRn</dt><dd>Rn은 리포터 형광을 참조 형광(ROX)으로 나눈 값이고, ΔRn은 Rn에서 베이스라인(증폭 전 배경)을 뺀 값이에요. 임계값은 ΔRn에 대해 정해요.</dd>
+          <dt>Threshold (임계값)</dt><dd>Ct를 정하는 기준선이에요. 지수 증폭 구간에 놓는 것이 좋고, 검출기마다 따로 정해요. 곡선 그래프의 점선이에요.</dd>
+          <dt>Baseline (베이스라인)</dt><dd>증폭이 시작되기 전 배경 신호를 구하는 사이클 범위(시작–끝)예요. 증폭이 일찍 시작하는 웰은 끝 사이클을 줄여야 해요.</dd>
+          <dt>표적유전자 · 형광 다이 · 소광체</dt><dd>표적유전자(Detector)는 검출하려는 유전자(프라이머·프로브 세트) 이름, 형광 다이(Reporter)는 프로브의 형광 물질(FAM, JOE, CY5 …), 소광체(Quencher)는 프로브가 온전할 때 형광을 눌러 두는 물질이에요.</dd>
+          <dt>Task</dt><dd>웰의 역할: UNKNOWN(미지 시료), STANDARD(표준), NTC(무주형 대조) 등이에요. 표준곡선 정량은 STANDARD 웰이 있어야 해요.</dd>
+          <dt>Slope · Efficiency · R²</dt><dd>표준곡선에서 Ct 대 log10(양)의 기울기예요. 이상적인 기울기는 약 −3.32, 효율 = (10^(−1/기울기) − 1) × 100 %로 보통 90–110 %를 허용하고, R²는 0.98–0.99 이상이면 좋아요.</dd>
+          <dt>Ct Mean · Ct SD</dt><dd>같은 시료·검출기의 반복 웰 Ct의 평균과 표준편차예요. SD가 0.5 이상이면 반복 간 차이가 큰 편이에요.</dd>
+          <dt>플레이트 선택</dt><dd>웰 위를 드래그하면 사각형으로 선택돼요. Ctrl(또는 Shift)을 누르고 드래그하면 추가, 행·열 머리글을 누르면 그 행·열 전체, 왼쪽 위 모서리를 누르면 전체 선택이에요.</dd>
+        </dl>
+      </div>
+    </details>
     <section class="card">
       <div class="chead"><h2>📋 결과표</h2><span class="hint" id="edsCount"></span></div>
       <div class="row"><label>검색<input id="edsQ" class="txt" type="search" placeholder="웰 · 시료 · 검출기"></label><label>검출기<select id="edsTgt" class="txt"></select></label><button id="edsCsv">⬇️ CSV 저장</button></div>

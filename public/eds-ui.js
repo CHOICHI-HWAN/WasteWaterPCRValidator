@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // 7500 Fast 결과(.eds) 보기 화면: 요약 · 플레이트 · 증폭 곡선 · 결과표 · 시료×검출기 요약
-import { readEds, summarize } from './eds.js';
+import { readEds, summarize, standardCurves } from './eds.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const PALETTE = ['#2f80ed', '#e08e0b', '#c0362c', '#12804a', '#8a4bd5', '#0e8fa0', '#d6336c', '#5f6b73'];
@@ -12,7 +12,7 @@ const dur = (a, b) => { if (!a || !b || b < a) return ''; const m = Math.round((
 
 export function initEds({ $, saveBlob }) {
   let data = null, fileName = '';
-  const S = { sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '' };
+  const S = { ymin: null, ymax: null, sel: new Set(), hidden: new Set(), sig: 'drn', log: false, only: false, q: '', tgt: '' };
   const col = (t) => PALETTE[Math.max(0, data.detectors.findIndex((d) => d.name === t)) % PALETTE.length];
 
   // ---------- 파일 읽기 ----------
@@ -42,7 +42,11 @@ export function initEds({ $, saveBlob }) {
       row('반응 부피', p.volume ? `${p.volume} µL` : '') + row('플레이트', `${i.rows} × ${i.cols} (${i.rows * i.cols}웰)`) + row('웰 · 검출기 결과', `${new Set(data.reads.map((r) => r.idx)).size}웰 · ${data.reads.length}건`) + '</div>';
     const steps = p.stages.map((s) => `<div class="stg"><b>${s.flag === 'PRE_CYCLING' ? '사전 변성' : s.flag === 'CYCLING' ? '증폭' : s.flag === 'HOLD' ? '유지' : esc(s.flag)}</b> ×${s.reps}<br>` + s.steps.map((t) => `${t.temp} °C · ${t.hold >= 60 && t.hold % 60 === 0 ? t.hold / 60 + ' 분' : t.hold + ' 초'}${t.collect ? ' 📷' : ''}`).join('<br>') + '</div>').join('');
     $('edsProto').innerHTML = steps ? `<div class="edsstages">${steps}</div><p class="note" style="margin:6px 0 0">📷 = 형광 측정(데이터 수집) 단계${p.cover ? ` · 뚜껑 ${p.cover} °C` : ''}</p>` : '';
-    $('edsDets').innerHTML = data.detectors.map((d) => `<button type="button" class="edschip${S.hidden.has(d.name) ? ' off' : ''}" data-det="${esc(d.name)}" title="클릭하면 그래프에서 숨기거나 보여요"><i style="background:${col(d.name)}"></i><b>${esc(d.name)}</b> <small>${esc(d.reporter)}${d.threshold !== null ? ` · 임계값 ${d.threshold < 100 ? d.threshold : Math.round(d.threshold).toLocaleString('en-US')}` : ''}</small></button>`).join('');
+    const cnt = (n) => { const rs = data.reads.filter((r) => r.target === n); return [rs.length, rs.filter((r) => r.detected).length]; };
+    const th = (x, tip) => `<th title="${esc(tip)}">${x}</th>`;
+    $('edsDets').innerHTML = '<table class="drt edsdet"><thead><tr>' + th('표시', '행을 누르면 증폭 곡선에서 숨기거나 보여요') + th('표적유전자', 'Target(Detector): 증폭하려는 유전자 · 프라이머/프로브 세트의 이름') + th('형광 다이', 'Reporter: 프로브 5′ 끝의 형광 물질 (FAM, JOE, CY5 …)') + th('소광체', 'Quencher: 프로브가 온전할 때 형광을 눌러 두는 물질 (None = 장비 설정에 지정하지 않음)') +
+      th('임계값', 'Threshold: Ct를 정하는 ΔRn 기준선. 곡선이 이 값을 처음 넘는 사이클이 Ct') + th('임계값 방식', 'Auto = 소프트웨어가 자동 계산, Manual = 사용자가 직접 지정') + th('베이스라인', 'Baseline: 증폭 전 배경 신호를 구하는 사이클 범위 (시작–끝)') + th('웰 수', '이 검출기의 결과 건수') + th('검출', 'Ct가 정해진 건수 (나머지는 Undetermined)') + '</tr></thead><tbody>' +
+      data.detectors.map((d) => { const [n, k] = cnt(d.name); return `<tr data-det="${esc(d.name)}" class="${S.hidden.has(d.name) ? 'off' : ''}"><td><i class="ld" style="background:${col(d.name)}"></i>${S.hidden.has(d.name) ? '숨김' : '표시'}</td><td style="font-weight:800">${esc(d.name)}</td><td>${esc(d.reporter)}</td><td>${esc(d.quencher)}</td><td>${d.threshold === null ? '–' : d.threshold < 100 ? d.threshold : Math.round(d.threshold).toLocaleString('en-US')}</td><td>${d.autoCt === null ? '–' : d.autoCt ? 'Auto' : 'Manual'}</td><td>${d.baseStart === null ? '–' : `${d.baseStart} – ${d.baseStop}`}</td><td>${n}</td><td>${k}</td></tr>`; }).join('') + '</tbody></table>';
   }
 
   // ---------- 플레이트 ----------
@@ -50,15 +54,15 @@ export function initEds({ $, saveBlob }) {
     const { rows, cols } = data.info, byIdx = new Map(), layout = new Map(data.layout);
     for (const r of data.reads) (byIdx.get(r.idx) ?? byIdx.set(r.idx, []).get(r.idx)).push(r);
     const sc = new Map(data.samples.map((s) => [s.name, s.color]));
-    let h = '<table class="edsplate"><thead><tr><th></th>' + Array.from({ length: cols }, (_, c) => `<th>${c + 1}</th>`).join('') + '</tr></thead><tbody>';
+    let h = '<table class="edsplate"><thead><tr><th data-all title="전체 선택"></th>' + Array.from({ length: cols }, (_, c) => `<th data-c="${c}" title="${c + 1}열 선택">${c + 1}</th>`).join('') + '</tr></thead><tbody>';
     for (let r = 0; r < rows; r++) {
-      h += `<tr><th>${String.fromCharCode(65 + r)}</th>`;
+      h += `<tr><th data-r="${r}" title="${String.fromCharCode(65 + r)}행 선택">${String.fromCharCode(65 + r)}</th>`;
       for (let c = 0; c < cols; c++) {
         const idx = r * cols + c, rs = byIdx.get(idx), smp = rs?.[0]?.sample ?? layout.get(idx);
-        if (!smp) { h += '<td class="e"></td>'; continue; }
+        if (!smp) { h += `<td class="e" data-r="${r}" data-c="${c}"></td>`; continue; }
         const on = rs?.some((x) => S.sel.has(key(x)));
         const dots = (rs ?? []).map((x) => `<i class="${x.detected ? '' : 'nd'}" style="--c:${col(x.target)}" title="${esc(x.target)}"></i>`).join('');
-        h += `<td data-idx="${idx}" class="${on ? 'sel' : ''}" style="--s:${sc.get(smp) ?? '#9aa5ab'}" title="${wellName(idx, cols)} · ${esc(smp)}"><span class="sn">${esc(smp)}</span><span class="dots">${dots}</span></td>`;
+        h += `<td data-idx="${idx}" data-r="${r}" data-c="${c}" class="${on ? 'sel' : ''}" style="--s:${sc.get(smp) ?? '#9aa5ab'}" title="${wellName(idx, cols)} · ${esc(smp)}"><span class="sn">${esc(smp)}</span><span class="dots">${dots}</span></td>`;
       }
       h += '</tr>';
     }
@@ -78,13 +82,15 @@ export function initEds({ $, saveBlob }) {
     if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
     let y0, y1, ticks = [];
     if (S.log) {
-      y0 = Math.floor(Math.log10(Math.max(lo, 1e-3))); y1 = Math.ceil(Math.log10(Math.max(hi, 1)));
+      const a = S.ymin !== null && S.ymin > 0 ? S.ymin : lo, b = S.ymax !== null && S.ymax > 0 ? S.ymax : hi;
+      y0 = Math.floor(Math.log10(Math.max(a, 1e-3))); y1 = Math.ceil(Math.log10(Math.max(b, 1)));
       if (y1 <= y0) y1 = y0 + 1;
       for (let k = y0; k <= y1; k++) ticks.push(k);
     } else {
-      const span = hi - Math.min(lo, 0) || 1, step = 10 ** Math.floor(Math.log10(span / 5)), m = [1, 2, 2.5, 5, 10].find((q) => span / (q * step) <= 6) * step;
-      y0 = Math.floor(Math.min(lo, 0) / m) * m; y1 = Math.ceil(hi / m) * m;
-      for (let v = y0; v <= y1 + m / 1e6; v += m) ticks.push(v);
+      let a = S.ymin ?? Math.min(lo, 0), b = S.ymax ?? hi; if (b <= a) b = a + 1;
+      const span = b - a, step = 10 ** Math.floor(Math.log10(span / 5)), m = [1, 2, 2.5, 5, 10].find((q) => span / (q * step) <= 6) * step;
+      y0 = S.ymin ?? Math.floor(a / m) * m; y1 = S.ymax ?? Math.ceil(b / m) * m; if (y1 <= y0) y1 = y0 + m;
+      for (let v = Math.ceil(y0 / m) * m; v <= y1 + m / 1e6; v += m) ticks.push(v);
     }
     const X = (c) => L + ((c - 1) / (N - 1)) * pw;
     const Y = (v) => { const t = S.log ? (Math.log10(Math.max(v, 10 ** y0)) - y0) / (y1 - y0) : (v - y0) / (y1 - y0); return T + (1 - t) * ph; };
@@ -147,20 +153,75 @@ export function initEds({ $, saveBlob }) {
       samples.map((s) => `<tr><td style="text-align:left;font-weight:700">${esc(s)}</td>` + tg.map((t) => { const x = get(s, t); return !x ? '<td></td>' : x.pos ? `<td title="${x.wells.join(', ')}">${f2(x.mean)} <small>(${x.pos}/${x.n})</small></td>` : `<td class="und" title="${x.wells.join(', ')}">ND <small>(0/${x.n})</small></td>`; }).join('') + '</tr>').join('') + '</tbody></table>';
   }
 
-  function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
+  function renderStd() {
+    const cs = standardCurves(data); S.std = cs;
+    let h = '';
+    if (!cs.length) h = '<p class="note">이 파일에는 <b>표준(STANDARD) 웰</b>이 없어서 표준곡선과 정량값을 만들 수 없어요. 장비에서 웰의 Task를 Standard로 지정하고 양(Quantity)을 넣은 실험(<i>Quantitation – Standard Curve</i>)이어야 해요.</p>';
+    else {
+      h += '<div class="stdwrap">' + cs.map((c) => {
+        const W = 340, H = 240, L = 46, R = 14, T = 16, B = 38, xs = c.points.map((p) => p.x), ys = c.points.map((p) => p.ct);
+        const x0 = Math.floor(Math.min(...xs)) - 0.3, x1 = Math.ceil(Math.max(...xs)) + 0.3, y0 = Math.floor(Math.min(...ys)) - 1, y1 = Math.ceil(Math.max(...ys)) + 1;
+        const X = (v) => L + ((v - x0) / (x1 - x0)) * (W - L - R), Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+        let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="'Noto Sans KR',Arial,sans-serif" style="max-width:100%;height:auto"><rect width="${W}" height="${H}" fill="#fff"/>`;
+        for (let v = Math.ceil(y0); v <= y1; v += 2) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e3eaee"/><text x="${L - 6}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#3a5560">${v}</text>`;
+        for (let v = Math.ceil(x0); v <= x1; v++) s += `<line y1="${T}" y2="${H - B}" x1="${X(v)}" x2="${X(v)}" stroke="#e3eaee"/><text x="${X(v)}" y="${H - B + 14}" font-size="10" text-anchor="middle" fill="#3a5560">${v}</text>`;
+        s += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#9db4bd"/><line x1="${X(x0)}" y1="${Y(c.slope * x0 + c.intercept)}" x2="${X(x1)}" y2="${Y(c.slope * x1 + c.intercept)}" stroke="${col(c.target)}" stroke-width="2"/>`;
+        s += c.points.map((p) => `<circle cx="${X(p.x)}" cy="${Y(p.ct)}" r="3.8" fill="#fff" stroke="${col(c.target)}" stroke-width="2"><title>${p.well} · Ct ${f2(p.ct)}</title></circle>`).join('');
+        s += `<text x="${(L + W - R) / 2}" y="${H - 6}" font-size="11" text-anchor="middle" fill="#14313b">log10(Quantity)</text><text transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" font-size="11" text-anchor="middle" fill="#14313b">Ct</text></svg>`;
+        const eff = c.efficiency, good = eff >= 90 && eff <= 110;
+        return `<div class="stdc"><h3 style="margin:0 0 6px;font-size:14px"><i class="ld" style="background:${col(c.target)}"></i>${esc(c.target)}</h3>${s}<div class="edsgrid" style="margin-top:8px"><div><span>Slope</span><b>${c.slope.toFixed(3)}</b></div><div><span>Y-intercept</span><b>${c.intercept.toFixed(3)}</b></div><div><span>R²</span><b>${c.r2.toFixed(4)}</b></div><div><span>Efficiency</span><b style="color:var(${good ? '--ok' : '--bad'})">${eff.toFixed(1)} %</b></div><div><span>표준 점</span><b>${c.n}개 (${c.levels}단계)</b></div></div></div>`;
+      }).join('') + '</div>';
+      const rs = data.reads.filter((r) => cs.some((c) => c.target === r.target) && !/^STANDARD$/i.test(r.task2));
+      h += '<h3 class="edsh">정량값 (표준곡선으로 계산)</h3><div class="scroll"><table class="drt edsres"><thead><tr><th>Well</th><th>Sample</th><th>Target</th><th>Ct</th><th title="표준곡선에서 이 사이트가 계산한 값: 10^((Ct − 절편) / 기울기)">계산 Quantity</th><th title="장비 소프트웨어가 파일에 저장한 값">장비 Quantity</th></tr></thead><tbody>' + rs.map((r) => `<tr><td>${r.well}</td><td>${esc(r.sample)}</td><td><i class="ld" style="background:${col(r.target)}"></i>${esc(r.target)}</td>` + (r.detected ? `<td>${f2(r.ct)}</td><td>${r.calcQty === null || r.calcQty === undefined ? '' : r.calcQty.toExponential(3)}</td>` : '<td class="und">Undetermined</td><td></td>') + `<td>${r.qty === null ? '' : r.qty.toExponential(3)}</td></tr>`).join('') + '</tbody></table></div>';
+    }
+    $('edsStd').innerHTML = h;
+    $('edsMelt').innerHTML = data.melt
+      ? '<p class="note">이 파일에는 <b>융해(Melt) 단계</b>가 있어요. 다만 융해 곡선 데이터의 저장 방식을 확인할 수 있는 파일로 검증하지 못해서 아직 표시하지 않아요. 융해 단계가 있는 .eds(SYBR Green) 샘플을 주시면 Tm 피크까지 지원할게요.</p>'
+      : '<p class="note">이 파일의 PCR 프로그램에는 <b>융해(Melt) 단계가 없어요</b> (TaqMan 프로브 실험). SYBR Green 실험처럼 융해 단계가 있는 파일에서 융해 곡선을 보여줄 예정이에요.</p>';
+  }
+  function renderAll() { renderInfo(); renderPlate(); renderPlot(); renderTable(); renderPivot(); renderStd(); const d = $('edsTgt'); d.innerHTML = '<option value="">모든 검출기</option>' + data.detectors.map((x) => `<option>${esc(x.name)}</option>`).join(''); $('edsSel').textContent = ''; $('edsTitle').textContent = data.info.name; }
   function refreshSel() { renderPlate(); renderPlot(); renderTable(); $('edsSel').textContent = S.sel.size ? `선택 ${S.sel.size}건` : ''; }
 
   // ---------- 상호작용 ----------
-  $('edsPlate').addEventListener('click', (e) => {
-    const td = e.target.closest('td[data-idx]'); if (!td) return;
-    const rs = data.reads.filter((r) => r.idx === +td.dataset.idx), all = rs.every((r) => S.sel.has(key(r)));
-    rs.forEach((r) => (all ? S.sel.delete(key(r)) : S.sel.add(key(r)))); refreshSel();
+  // 플레이트 선택: 7500 소프트웨어처럼 드래그로 사각형 선택. Ctrl/Shift = 추가, 머리글 = 행/열/전체
+  let drag = null;
+  const cellOf = (e) => { const el = (e.target.closest?.('td[data-r]') ?? document.elementFromPoint(e.clientX, e.clientY))?.closest('td[data-r],th[data-r],th[data-c],th[data-all]'); return el; };
+  const rectOf = (a, b) => ({ r0: Math.min(a.r, b.r), r1: Math.max(a.r, b.r), c0: Math.min(a.c, b.c), c1: Math.max(a.c, b.c) });
+  const paintDrag = () => { const q = rectOf(drag.a, drag.b); $('edsPlate').querySelectorAll('td[data-idx]').forEach((td) => { const r = +td.dataset.r, c = +td.dataset.c; td.classList.toggle('drag', r >= q.r0 && r <= q.r1 && c >= q.c0 && c <= q.c1); }); };
+  $('edsPlate').addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    const el = e.target.closest('td[data-r],th[data-r],th[data-c],th[data-all]'); if (!el) return;
+    e.preventDefault();
+    const { rows, cols } = data.info, add = e.ctrlKey || e.metaKey || e.shiftKey;
+    if (el.dataset.all !== undefined) drag = { a: { r: 0, c: 0 }, b: { r: rows - 1, c: cols - 1 }, add, hdr: true };
+    else if (el.tagName === 'TH' && el.dataset.r !== undefined) drag = { a: { r: +el.dataset.r, c: 0 }, b: { r: +el.dataset.r, c: cols - 1 }, add, hdr: true };
+    else if (el.tagName === 'TH') drag = { a: { r: 0, c: +el.dataset.c }, b: { r: rows - 1, c: +el.dataset.c }, add, hdr: true };
+    else drag = { a: { r: +el.dataset.r, c: +el.dataset.c }, b: { r: +el.dataset.r, c: +el.dataset.c }, add, moved: false };
+    paintDrag();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!drag || drag.hdr) return;
+    const el = cellOf(e); if (!el || el.dataset.r === undefined || el.tagName === 'TH') return;
+    const b = { r: +el.dataset.r, c: +el.dataset.c };
+    if (b.r !== drag.b.r || b.c !== drag.b.c) { drag.b = b; drag.moved = true; paintDrag(); }
+  });
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    const q = rectOf(drag.a, drag.b), hit = data.reads.filter((r) => r.row >= q.r0 && r.row <= q.r1 && r.col >= q.c0 && r.col <= q.c1);
+    const single = !drag.hdr && !drag.moved, allOn = hit.length > 0 && hit.every((r) => S.sel.has(key(r)));
+    if (drag.add) hit.forEach((r) => (allOn ? S.sel.delete(key(r)) : S.sel.add(key(r))));
+    else if (single && allOn && S.sel.size === hit.length) S.sel.clear();
+    else { S.sel.clear(); hit.forEach((r) => S.sel.add(key(r))); }
+    drag = null; refreshSel();
   });
   $('edsTable').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-k]'); if (!tr) return; const k = tr.dataset.k; S.sel.has(k) ? S.sel.delete(k) : S.sel.add(k); refreshSel(); });
-  $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
+  $('edsDets').addEventListener('click', (e) => { const b = e.target.closest('tr[data-det]'); if (!b) return; const n = b.dataset.det; S.hidden.has(n) ? S.hidden.delete(n) : S.hidden.add(n); renderInfo(); renderPlot(); });
   $('edsSig').addEventListener('change', () => { S.sig = $('edsSig').value; renderPlot(); });
   $('edsLog').addEventListener('change', () => { S.log = $('edsLog').checked; renderPlot(); });
   $('edsOnly').addEventListener('change', () => { S.only = $('edsOnly').checked; renderPlot(); });
+  const yIn = () => { const g = (id) => { const s = $(id).value.trim().replace(/,/g, ''); const v = Number(s); return s === '' || !Number.isFinite(v) ? null : v; }; S.ymin = g('edsYmin'); S.ymax = g('edsYmax'); renderPlot(); };
+  $('edsYmin').addEventListener('input', yIn); $('edsYmax').addEventListener('input', yIn);
+  $('edsYauto').addEventListener('click', () => { $('edsYmin').value = ''; $('edsYmax').value = ''; yIn(); });
   $('edsClearSel').addEventListener('click', () => { S.sel.clear(); refreshSel(); });
   $('edsQ').addEventListener('input', () => { S.q = $('edsQ').value; renderTable(); });
   $('edsTgt').addEventListener('change', () => { S.tgt = $('edsTgt').value; renderTable(); });

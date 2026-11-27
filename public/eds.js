@@ -57,6 +57,11 @@ export function parseEds(f) {
   const layout = new Map();
   for (const m of plate.matchAll(/<Index>(\d+)<\/Index>\s*<FeatureItem>\s*<Sample>\s*<Name>([\s\S]*?)<\/Name>/g)) layout.set(Number(m[1]), decode(m[2]));
 
+  // 웰·검출기별 Task(STANDARD/UNKNOWN/NTC…)와 표준 정량값
+  const dtask = new Map();
+  for (const m of plate.matchAll(/<Index>(\d+)<\/Index>\s*<FeatureItem>\s*<DetectorTaskList>([\s\S]*?)<\/DetectorTaskList>/g))
+    for (const b of blocks(m[2], 'DetectorTask')) dtask.set(m[1] + '|' + tag(/<Detector>[\s\S]*?<\/Detector>/.exec(b)?.[0] ?? '', 'Name'), { task: tag(b, 'Task'), qty: num(tag(b, 'Concentration')) });
+
   // 결과: 웰·검출기마다 한 줄(Ct …) + 'Rn values' + 'Delta Rn values'
   const reads = [];
   const lines = String(f.analysisResult ?? '').split(/\r?\n/);
@@ -72,14 +77,16 @@ export function parseEds(f) {
     const idx = Number(c[0]), ct = num(c[4]);
     reads.push({
       idx, well: wellName(idx, cols), row: Math.floor(idx / cols), col: idx % cols, sample: c[1] ?? '', target: c[2] ?? '', task: c[3] ?? '',
-      ct, detected: ct !== null && ct < UNDET_CT, ctMean: num(c[5]), ctSd: num(c[6]), qty: num(c[8]), qtyMean: num(c[9]),
+      ct, detected: ct !== null && ct < UNDET_CT, ctMean: num(c[5]), ctSd: num(c[6]), qty: num(c[8]), qtyMean: num(c[9]), qtySd: num(c[10]),
+      task2: dtask.get(idx + '|' + (c[2] ?? ''))?.task ?? c[3] ?? '', setQty: dtask.get(idx + '|' + (c[2] ?? ''))?.qty ?? null,
       rn, drn, color: detByName.get(c[2])?.color ?? '#6a8590',
     });
   }
   const cycles = reads.reduce((m, r) => Math.max(m, r.drn.length, r.rn.length), 0);
   for (const r of reads) if (!sampleColor.has(r.sample)) sampleColor.set(r.sample, '#9aa5ab');
 
-  return { info, samples: [...sampleColor].map(([name, color]) => ({ name, color })), detectors, protocol, layout: [...layout], reads, cycles };
+  const melt = protocol.stages.some((s) => /MELT|DISSOC/i.test(s.flag));
+  return { info, melt, samples: [...sampleColor].map(([name, color]) => ({ name, color })), detectors, protocol, layout: [...layout], reads, cycles };
 }
 
 // 시료 × 검출기 요약: 검출된 반복의 평균 Ct 와 양성 수/반복 수
@@ -92,6 +99,24 @@ export function summarize(data) {
     out.set(key, o);
   }
   return [...out.values()].map((o) => ({ ...o, mean: o.pos ? o.sum / o.pos : null }));
+}
+
+// 표준곡선 정량: 검출기마다 STANDARD 웰의 Ct 를 log10(양)에 대해 최소제곱 → 기울기·절편·R²·효율, 나머지 웰의 정량값
+export function standardCurves(data) {
+  const out = [];
+  for (const d of data.detectors) {
+    const pts = data.reads.filter((r) => r.target === d.name && /^STANDARD$/i.test(r.task2) && r.setQty > 0 && r.detected);
+    const levels = new Set(pts.map((p) => p.setQty));
+    if (pts.length < 2 || levels.size < 2) continue;
+    const xs = pts.map((p) => Math.log10(p.setQty)), ys = pts.map((p) => p.ct), n = pts.length;
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+    const slope = sxy / sxx, intercept = my - slope * mx, r2 = syy === 0 ? 1 : (sxy * sxy) / (sxx * syy);
+    out.push({ target: d.name, slope, intercept, r2, efficiency: (10 ** (-1 / slope) - 1) * 100, n, levels: levels.size, points: pts.map((p) => ({ well: p.well, x: Math.log10(p.setQty), ct: p.ct })) });
+  }
+  for (const c of out) for (const r of data.reads) if (r.target === c.target && !/^STANDARD$/i.test(r.task2)) r.calcQty = r.detected ? 10 ** ((r.ct - c.intercept) / c.slope) : null;
+  return out;
 }
 
 const FILES = { experiment: 'apldbio/sds/experiment.xml', tcprotocol: 'apldbio/sds/tcprotocol.xml', analysisProtocol: 'apldbio/sds/analysis_protocol.xml', analysisResult: 'apldbio/sds/analysis_result.txt', plateSetup: 'apldbio/sds/plate_setup.xml' };
