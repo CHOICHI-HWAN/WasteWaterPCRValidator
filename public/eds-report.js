@@ -71,8 +71,6 @@ export function buildModel(data, o) {
     const qrows = data.reads.filter((r) => o.curves.some((c) => c.target === r.target) && !/^STANDARD$/i.test(r.task2)).map((r) => [r.well, r.sample, r.target, r.detected ? f2(r.ct) : 'Undetermined', r.detected ? sci(r.calcQty) : '', sci(r.qty)]);
     B.push({ t: 'table', head: ['Well', 'Sample', 'Target', 'Ct', '계산 Quantity', '장비 Quantity'], rows: qrows, widths: [1.2, 2, 2, 1.6, 2.2, 2.2] });
   }
-  B.push({ t: 'h', text: `${sec}. 안내` });
-  B.push({ t: 'p', small: true, text: `이 보고서는 ${o.program}의 7500FAST 탭이 .eds 파일에서 읽어 자동으로 만들었어요. 베타 소프트웨어이므로 장비 소프트웨어(7500 Software)의 화면·내보내기 값과 대조해 확인한 뒤 사용해 주세요.` });
   return B;
 }
 
