@@ -193,18 +193,65 @@ export function detectBlobs(channel, w, h, well, threshold, opts = {}) {
   const visited = new Uint8Array(bw * bh), blobs = [];
   for (let i = 0; i < mask.length; i++) {
     if (!mask[i] || visited[i]) continue;
-    const stack = [i]; visited[i] = 1; let sumX = 0, sumY = 0, area = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const stack = [i]; visited[i] = 1; const pix = [];
+    let sumX = 0, sumY = 0, area = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     while (stack.length) {
       const p = stack.pop(), py = (p / bw) | 0, px = p % bw;
+      pix.push(px, py);
       sumX += px; sumY += py; area++;
       minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
       const nb = [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]];
       for (const [nx, ny] of nb) { if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue; const ni = ny * bw + nx; if (mask[ni] && !visited[ni]) { visited[ni] = 1; stack.push(ni); } }
     }
     if (area < minAreaPx || area > maxAreaPx) continue;
-    blobs.push({ cx: x0 + sumX / area, cy: y0 + sumY / area, area, w: maxX - minX + 1, h: maxY - minY + 1 });
+    // 이 블롭만의 작은 마스크를 따로 떼어 둔다 — 나중에 "모양"으로 맞붙은 플라크 개수를 셀 때 쓴다(크기 비교 대신).
+    const mw = maxX - minX + 1, mh = maxY - minY + 1, compMask = new Uint8Array(mw * mh);
+    for (let k = 0; k < pix.length; k += 2) compMask[(pix[k + 1] - minY) * mw + (pix[k] - minX)] = 1;
+    blobs.push({ cx: x0 + sumX / area, cy: y0 + sumY / area, area, w: mw, h: mh, mask: compMask, maskW: mw, maskH: mh });
   }
   return blobs;
+}
+
+// ---------- 체임퍼 거리변환(근사 유클리드 거리): 전경 픽셀이 배경에서 얼마나 떨어져 있는지 ----------
+export function distanceTransform(mask, w, h) {
+  const INF = 1e9, dist = new Float32Array(w * h);
+  for (let i = 0; i < mask.length; i++) dist[i] = mask[i] ? INF : 0;
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? INF : dist[y * w + x]);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!mask[y * w + x]) continue;
+    dist[y * w + x] = Math.min(dist[y * w + x], at(x - 1, y) + 1, at(x, y - 1) + 1, at(x - 1, y - 1) + 1.4142, at(x + 1, y - 1) + 1.4142);
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    if (!mask[y * w + x]) continue;
+    dist[y * w + x] = Math.min(dist[y * w + x], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.4142, at(x - 1, y + 1) + 1.4142);
+  }
+  return dist;
+}
+
+// ---------- 덩어리 모양으로 "몇 개가 맞붙었는지" 세기 ----------
+// 크기가 제각각이어도 된다: 평균 크기와 비교하지 않고, 거리변환의 극대점(= 각 둥근 덩어리의 한가운데)을 센다.
+// 맞붙은 원 두 개는 잘록한 경계 때문에 극대점이 둘로 나뉘고, 그냥 큰 플라크 하나는 극대점이 하나뿐이다.
+export function countLobes(mask, w, h, opts = {}) {
+  const { minPeakFrac = 0.3, sepFrac = 0.75 } = opts;
+  const dist = distanceTransform(mask, w, h);
+  let maxD = 0; for (const d of dist) if (d < 1e8 && d > maxD) maxD = d;
+  if (maxD <= 0) return { count: 1, peaks: [] };
+  const candidates = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!mask[i]) continue;
+    const d = dist[i]; if (d < maxD * minPeakFrac) continue;
+    let isMax = true;
+    for (let dy = -1; dy <= 1 && isMax; dy++) for (let dx = -1; dx <= 1 && isMax; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      if (dist[ny * w + nx] > d) isMax = false;
+    }
+    if (isMax) candidates.push({ x, y, d });
+  }
+  candidates.sort((a, b) => b.d - a.d);
+  const minSep = maxD * sepFrac, peaks = [];
+  for (const c of candidates) if (peaks.every((p) => Math.hypot(p.x - c.x, p.y - c.y) >= minSep)) peaks.push(c);
+  return { count: Math.max(1, peaks.length), peaks };
 }
 
 // ---------- 앙상블: 여러 문턱값(+필요하면 여러 채널)으로 반복 검출해 다수결로 합친다 ----------
@@ -226,25 +273,28 @@ export function ensembleDetect(variants, w, h, well, opts = {}) {
   for (const b of all) {
     let hit = null;
     for (const c of clusters) { const dx = c.sumX / c.n - b.cx, dy = c.sumY / c.n - b.cy; if (Math.sqrt(dx * dx + dy * dy) <= mergeDistPx && !c.runs.has(b.ri)) { hit = c; break; } }
-    if (hit) { hit.runs.add(b.ri); hit.sumX += b.cx; hit.sumY += b.cy; hit.n++; hit.areaSum += b.area; hit.areaMax = Math.max(hit.areaMax, b.area); }
-    else clusters.push({ sumX: b.cx, sumY: b.cy, n: 1, runs: new Set([b.ri]), areaSum: b.area, areaMax: b.area });
+    if (hit) { hit.runs.add(b.ri); hit.sumX += b.cx; hit.sumY += b.cy; hit.n++; hit.areaSum += b.area; hit.areaMax = Math.max(hit.areaMax, b.area); hit.members.push(b); }
+    else clusters.push({ sumX: b.cx, sumY: b.cy, n: 1, runs: new Set([b.ri]), areaSum: b.area, areaMax: b.area, members: [b] });
   }
   const half = total / 2;
   const accepted = clusters.filter((c) => c.n >= Math.max(1, Math.ceil(half * 0.5))) // 최소 절반 가까이 동의해야 채택 (키스터닝 억제)
-    .map((c) => ({ cx: c.sumX / c.n, cy: c.sumY / c.n, area: c.areaSum / c.n, confidence: c.n / total }));
+    .map((c) => {
+      // 모양으로 개수를 셀 때 쓸 "대표 마스크": 여러 실행 중 면적이 중앙값에 가장 가까운 것의 모양을 쓴다(극단값 피하기).
+      const byArea = c.members.slice().sort((a, b) => a.area - b.area), rep = byArea[Math.floor(byArea.length / 2)];
+      return { cx: c.sumX / c.n, cy: c.sumY / c.n, area: c.areaSum / c.n, confidence: c.n / total, mask: rep.mask, maskW: rep.maskW, maskH: rep.maskH };
+    });
   return { blobs: accepted, totalRuns: total };
 }
 
-// 큰 블롭(여러 플라크가 맞붙은 것으로 추정)을 중앙값 면적 기준으로 나눠 개수를 추정한다.
+// 맞붙은 블롭을 몇 개로 나눠 셀지 추정한다. 평균 면적과 비교하지 않는다 — 플라크는 크기가 다양해서(작은 것도
+// 큰 것도 있다) "평균보다 크면 여러 개"라는 가정은 큰 플라크 하나를 잘못 쪼갤 수 있다. 대신 각 블롭 자신의
+// 모양(countLobes, 거리변환 극대점)만 본다: 같은 크기든 아니든 진짜 잘록한 경계가 있어야만 여러 개로 센다.
 export function splitMergedBlobs(blobs, opts = {}) {
-  if (blobs.length < 3) return { count: blobs.length, blobs };
-  const areas = blobs.map((b) => b.area).sort((a, b) => a - b), med = areas[Math.floor(areas.length / 2)] || 1;
-  const { mergeFactor = 1.6 } = opts;
   let count = 0; const out = [];
   for (const b of blobs) {
-    const est = Math.max(1, Math.round(b.area / med));
-    if (est > 1 && b.area > med * mergeFactor) { count += est; out.push({ ...b, merged: true, estCount: est }); }
-    else { count += 1; out.push({ ...b, merged: false, estCount: 1 }); }
+    const est = b.mask && b.maskW && b.maskH ? countLobes(b.mask, b.maskW, b.maskH, opts).count : 1;
+    count += est;
+    out.push({ ...b, merged: est > 1, estCount: est });
   }
   return { count, blobs: out };
 }

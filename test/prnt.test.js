@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 import assert from 'node:assert/strict';
-import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter, discStats, detectBlobs, ensembleDetect, splitMergedBlobs, judgeCountability, pxPerMm, prntInterpolate, detectColorBlobs, inferWellGrid } from '../public/prnt-calc.js';
+import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter, discStats, detectBlobs, ensembleDetect, splitMergedBlobs, judgeCountability, pxPerMm, prntInterpolate, detectColorBlobs, inferWellGrid, distanceTransform, countLobes } from '../public/prnt-calc.js';
+
+// 원 하나를 작은 마스크(Uint8Array, w×h)에 그려 넣는 도우미 — 모양 기반 테스트에 쓴다
+function drawCircleMask(w, h, cx, cy, r) {
+  const m = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const dx = x - cx, dy = y - cy; if (dx * dx + dy * dy <= r * r) m[y * w + x] = 1; }
+  return m;
+}
+const orMask = (a, b) => { const o = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) o[i] = a[i] || b[i] ? 1 : 0; return o; };
 
 // ---------- 채널 추출 ----------
 {
@@ -91,12 +99,44 @@ import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter,
   console.log('ensembleDetect tests passed');
 }
 
-// ---------- 병합 블롭 분리(추정) ----------
+// ---------- 거리변환 · 모양으로 덩어리 개수 세기 ----------
+// 크기 비교가 아니라 모양(거리변환 극대점)으로 센다 — 플라크 크기가 들쭉날쭉해도(작은 것·큰 것 섞여도) 맞아야 한다.
 {
-  const blobs = [{ area: 10, cx: 1, cy: 1 }, { area: 12, cx: 2, cy: 2 }, { area: 11, cx: 3, cy: 3 }, { area: 34, cx: 4, cy: 4 }]; // 마지막은 3개 정도 맞붙은 추정
+  // 혼자 있는 원 하나(그것도 아주 큰 원) — "평균보다 크다"는 이유로 쪼개지면 안 된다
+  const bigSolo = drawCircleMask(60, 60, 30, 30, 26);
+  assert.equal(countLobes(bigSolo, 60, 60).count, 1, '큰 원 하나를 여러 개로 잘못 쪼갬');
+
+  // 작은 원 하나도 그냥 1개
+  const smallSolo = drawCircleMask(20, 20, 10, 10, 6);
+  assert.equal(countLobes(smallSolo, 20, 20).count, 1);
+
+  // 맞닿은(겹치는) 원 두 개 — 크기가 서로 달라도(한쪽이 더 커도) 2개로 세야 한다
+  const two = orMask(drawCircleMask(60, 40, 18, 20, 14), drawCircleMask(60, 40, 42, 20, 10));
+  assert.equal(countLobes(two, 60, 40).count, 2, `두 원이 맞붙었는데 ${countLobes(two, 60, 40).count}개로 셈`);
+
+  // 한 줄로 맞붙은 원 세 개(크기 제각각) — 3개
+  let three = drawCircleMask(100, 36, 18, 18, 14);
+  three = orMask(three, drawCircleMask(100, 36, 46, 18, 10));
+  three = orMask(three, drawCircleMask(100, 36, 74, 18, 12));
+  assert.equal(countLobes(three, 100, 36).count, 3, `세 원이 맞붙었는데 ${countLobes(three, 100, 36).count}개로 셈`);
+  console.log('distanceTransform/countLobes tests passed');
+}
+
+// ---------- 병합 블롭 분리(추정): 실제 splitMergedBlobs 배선 확인 ----------
+{
+  const soloMask = drawCircleMask(20, 20, 10, 10, 8);
+  let twoMask = drawCircleMask(50, 30, 14, 15, 11);
+  twoMask = orMask(twoMask, drawCircleMask(50, 30, 36, 15, 9));
+  const blobs = [
+    { area: 80, cx: 1, cy: 1, mask: soloMask, maskW: 20, maskH: 20 },     // 1개
+    { area: 300, cx: 2, cy: 2, mask: twoMask, maskW: 50, maskH: 30 },     // 2개(맞붙음) — 면적이 훨씬 커도 "모양"으로만 판단
+    { area: 50, cx: 3, cy: 3 },                                          // 마스크 없음(예: 수동 추가) → 그냥 1개
+  ];
   const { count, blobs: out } = splitMergedBlobs(blobs);
-  assert.equal(count, 6); // 1+1+1+3
-  assert.equal(out[3].merged, true); assert.equal(out[3].estCount, 3);
+  assert.equal(out[0].estCount, 1); assert.equal(out[0].merged, false);
+  assert.equal(out[1].estCount, 2); assert.equal(out[1].merged, true);
+  assert.equal(out[2].estCount, 1); assert.equal(out[2].merged, false);
+  assert.equal(count, 4); // 1+2+1
   console.log('splitMergedBlobs tests passed');
 }
 
