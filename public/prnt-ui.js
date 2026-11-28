@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // PRNT 플라크 세기 화면: 사진 올리기 → 플레이트 범위 지정 → 웰 자동 검출(+수정) → 앙상블 검출(워커) → 보정 → 결과표/PRNT50·80·90 → 보고서
-import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate, detectColorBlobs, inferWellGrid, EDGE_EXCLUDE_FRAC } from './prnt-calc.js';
+import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate, detectColorBlobs, inferWellGrid, EDGE_EXCLUDE_FRAC, detectBlobs, splitMergedBlobs } from './prnt-calc.js';
 import { buildModel } from './prnt-report.js';
 import { renderPages, buildHwpx } from './eds-report.js';
 import { VERSION, APP_INFO } from './version.js';
+import { preloadPlaqueModel, runPlaqueProbability } from './prnt-ai.js';
+
+// AI 모델이 매긴 확률(0~255 채널)에 적용하는 문턱값 — 학습 때 쓴 공개 데이터셋으로 비교해 본 결과
+// 0.5(=127)가 평균오차·상관계수 모두 가장 낫더(sweep_threshold.mjs). 색상 임계값 방식과 달리 웰마다 자동 조정하지 않는다.
+const AI_PROB_THRESHOLD = 127;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ANALYSIS_MAX = 1400; // 분석·표시용 캔버스 긴 변 최대 픽셀
@@ -22,7 +27,7 @@ export function initPrnt({ $, saveBlob }) {
     wellType: 12, wells: [], results: new Map(), // key = `${row},${col}`
     meta: new Map(), // key -> { dilution: number|null, isControl: bool }
     correctMode: false, dragWell: null,
-    channels: ['green', 'invSat'], minDiamMm: '', pxPerMm: null, worker: null, lastTotalRuns: 0, swapRC: false,
+    channels: ['green', 'invSat'], minDiamMm: '', pxPerMm: null, worker: null, lastTotalRuns: 0, swapRC: false, useAi: false,
     prnt: null, controlMean: null,
   };
   const key = (row, col) => `${row},${col}`;
@@ -239,28 +244,61 @@ export function initPrnt({ $, saveBlob }) {
     S.channels = [...$('prntChannels').querySelectorAll('input[type=checkbox]:checked')].map((c) => c.value);
   });
   $('prntMinDiam').addEventListener('input', () => { S.minDiamMm = $('prntMinDiam').value; });
-  $('prntRunDetect').addEventListener('click', () => {
+  $('prntUseAi').addEventListener('change', () => {
+    S.useAi = $('prntUseAi').checked;
+    if (S.useAi) preloadPlaqueModel(); // 버튼을 누르기 전에 미리 불러둬서(약 480KB) 실제 분석 때 기다리는 시간을 줄인다.
+  });
+  function applyWorkerResults(results) {
+    S.lastTotalRuns = results[0]?.totalRuns ?? S.channels.length * 4;
+    for (const r of results) {
+      const k = key(r.row, r.col);
+      const avgConf = r.blobs.length ? r.blobs.reduce((a, b) => a + (b.confidence ?? 1), 0) / r.blobs.length : 1;
+      S.results.set(k, { count: r.count, judge: r.judge, blobs: r.blobs, confidence: avgConf, manual: false });
+    }
+  }
+  function runHeuristicDetect() {
+    return new Promise((resolve, reject) => {
+      const imgData = baseCtx.getImageData(0, 0, S.w, S.h);
+      const wellsPlain = S.wells.map((w) => ({ row: w.row, col: w.col, cx: w.cx, cy: w.cy, r: w.r }));
+      const w = worker();
+      w.onmessage = (e) => {
+        const { ok, error, results } = e.data;
+        if (!ok) { reject(new Error(error)); return; }
+        resolve(results);
+      };
+      const minDiamMmVal = Number(S.minDiamMm); const minDiamMm = S.minDiamMm !== '' && Number.isFinite(minDiamMmVal) && minDiamMmVal > 0 ? minDiamMmVal : null;
+      w.postMessage({ pixels: imgData.data.buffer, w: S.w, h: S.h, wells: wellsPlain, wellType: S.wellType, channels: S.channels, refine: false, minDiamMm, pxPerMm: S.pxPerMm }, [imgData.data.buffer]);
+    });
+  }
+  // AI 모드: 색상 임계값 앙상블 대신, 학습된 모델이 뽑은 플라크 확률맵 하나로 웰마다 detectBlobs+splitMergedBlobs를 돌린다
+  // (여러 채널 다수결이 아니라 모델 하나의 결과이므로 confidence는 늘 100%로 둔다 — 색상 방식과 비교할 때 참고).
+  async function runAiDetect() {
+    const imgData = baseCtx.getImageData(0, 0, S.w, S.h);
+    const probChannel = await runPlaqueProbability(imgData.data, S.w, S.h);
+    const minDiamMmVal = Number(S.minDiamMm); const minDiamMm = S.minDiamMm !== '' && Number.isFinite(minDiamMmVal) && minDiamMmVal > 0 ? minDiamMmVal : null;
+    const minAreaFromMm = minDiamMm && S.pxPerMm ? Math.PI * ((minDiamMm / 2) * S.pxPerMm) ** 2 : null;
+    return S.wells.map((well) => {
+      const minAreaPx = minAreaFromMm ?? Math.max(2, Math.round(well.r * well.r * 0.0006));
+      const blobs = detectBlobs(probChannel, S.w, S.h, well, AI_PROB_THRESHOLD, { minAreaPx, maxAreaPx: well.r * well.r * 0.35 });
+      const { count, blobs: splitBlobs } = splitMergedBlobs(blobs);
+      const judge = judgeCountability(count, S.wellType);
+      return { row: well.row, col: well.col, count, judge, totalRuns: 1, blobs: splitBlobs };
+    });
+  }
+  $('prntRunDetect').addEventListener('click', async () => {
     const msg = $('prntMsg');
     if (!S.wells.length) { msg.className = 'pberr'; msg.textContent = '먼저 "1) 웰 자동 검출"을 눌러 주세요.'; return; }
-    if (!S.channels.length) { msg.className = 'pberr'; msg.textContent = '검출 채널을 하나 이상 선택해 주세요.'; return; }
-    msg.className = 'note'; msg.textContent = '검출하는 중… (사진이 크면 몇 초 걸려요)';
-    const imgData = baseCtx.getImageData(0, 0, S.w, S.h);
-    const wellsPlain = S.wells.map((w) => ({ row: w.row, col: w.col, cx: w.cx, cy: w.cy, r: w.r }));
-    const w = worker();
-    w.onmessage = (e) => {
-      const { ok, error, results } = e.data;
-      if (!ok) { msg.className = 'pberr'; msg.textContent = '검출 실패: ' + error; return; }
-      S.lastTotalRuns = results[0]?.totalRuns ?? S.channels.length * 4;
-      for (const r of results) {
-        const k = key(r.row, r.col);
-        const avgConf = r.blobs.length ? r.blobs.reduce((a, b) => a + (b.confidence ?? 1), 0) / r.blobs.length : 1;
-        S.results.set(k, { count: r.count, judge: r.judge, blobs: r.blobs, confidence: avgConf, manual: false });
-      }
+    if (!S.useAi && !S.channels.length) { msg.className = 'pberr'; msg.textContent = '검출 채널을 하나 이상 선택해 주세요.'; return; }
+    msg.className = 'note';
+    msg.textContent = S.useAi ? '검출하는 중… (처음 켤 때는 모델을 불러오는 시간이 조금 더 걸려요)' : '검출하는 중… (사진이 크면 몇 초 걸려요)';
+    try {
+      const results = S.useAi ? await runAiDetect() : await runHeuristicDetect();
+      applyWorkerResults(results);
       msg.className = 'note'; msg.textContent = '검출 완료. 표에서 희석배수·대조군을 지정하고, 필요하면 사진을 클릭해 플라크를 보정하세요.';
       drawOverlay(); renderTable();
-    };
-    const minDiamMmVal = Number(S.minDiamMm); const minDiamMm = S.minDiamMm !== '' && Number.isFinite(minDiamMmVal) && minDiamMmVal > 0 ? minDiamMmVal : null;
-    w.postMessage({ pixels: imgData.data.buffer, w: S.w, h: S.h, wells: wellsPlain, wellType: S.wellType, channels: S.channels, refine: false, minDiamMm, pxPerMm: S.pxPerMm }, [imgData.data.buffer]);
+    } catch (err) {
+      msg.className = 'pberr'; msg.textContent = '검출 실패: ' + (err.message || String(err));
+    }
   });
 
   // ---------- 보정 모드: 클릭으로 플라크 추가·삭제 ----------

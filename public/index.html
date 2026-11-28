@@ -560,6 +560,7 @@
         <label class="chk"><input type="checkbox" value="invSat" checked> 채도 역(흰색 강조)</label>
         <label class="chk"><input type="checkbox" value="lightness"> 명도</label>
         <label title="웰 지름(이미 찾은 웰의 화면 지름 ÷ 이 플레이트 규격의 표준 지름)으로 자동 환산해요. 자를 따로 댈 필요 없어요.">최소 플라크 직경(mm)<input id="prntMinDiam" class="txt" type="text" inputmode="decimal" placeholder="선택" style="width:90px"></label>
+        <label class="chk" title="공개 데이터셋으로 학습한 작은 모델(118K 파라미터, ~480KB)로 색상 임계값 방식 대신 플라크를 찾아요. 처음 켤 때 모델을 한 번 불러와요(기기 안에서만 계산, 서버로 사진을 보내지 않음)."><input type="checkbox" id="prntUseAi"> 🤖 AI 보정 사용(실험적)</label>
         <button id="prntRunDetect" class="primary" type="button">▶ 검출 실행</button>
         <label class="chk" title="켜고 사진을 클릭하면 그 위치에 플라크를 추가하고, 기존 표시를 클릭하면 삭제해요."><input type="checkbox" id="prntCorrect"> ✏️ 보정 모드(클릭으로 추가·삭제)</label>
         <button id="prntSavePng" type="button">🖼️ 검출 결과 사진 저장 (PNG)</button>

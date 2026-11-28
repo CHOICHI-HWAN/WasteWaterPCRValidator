@@ -10,6 +10,7 @@
 | [jsuites](https://github.com/jsuites/jsuites) | 5.13.5 | Jspreadsheet CE 의존 라이브러리(UI 컴포넌트) | MIT (Copyright (c) Jspreadsheet) | **사이트에 포함**(`public/vendor/jspreadsheet/`) |
 | [html2canvas](https://html2canvas.hertzen.com/) | 1.4.1 | 미리보기를 이미지로 캡처(PDF·PNG 다운로드용, 필요할 때만 로드) | MIT | **사이트에 포함**(`public/vendor/html2canvas/`) |
 | [jsPDF](https://github.com/parallax/jsPDF) | 2.5.1 | PDF 파일 생성(PDF 다운로드용, 필요할 때만 로드) | MIT | **사이트에 포함**(`public/vendor/jspdf/`) |
+| [TensorFlow.js](https://www.tensorflow.org/js) (core + wasm 백엔드) | 4.22.0 | PRNT 플라크 탭의 "AI 보정" 옵션(학습된 모델로 플라크 후보 보완, 필요할 때만 로드) | Apache License 2.0 | **사이트에 포함**(`public/vendor/tfjs/`, `public/vendor/tfjs-backend-wasm/`, 외부 CDN 호출 없음) |
 | [Firebase JS SDK](https://github.com/firebase/firebase-js-sdk) (`firebase-app`, `firebase-analytics`) | 10.14.1 | 앱 초기화, 접속 통계 (웹 사이트에서만 사용, exe·로컬 실행에서는 사용 안 함) | Apache License 2.0 | gstatic CDN |
 | [Go](https://go.dev/) 런타임·표준 라이브러리 | 1.27.3 | Windows 실행 파일(exe)의 실행기 | BSD-3-Clause (Copyright 2009 The Go Authors) — 전문: `desktop/GO_LICENSE.txt` | exe에만 포함 |
 | [Firebase Hosting](https://firebase.google.com/) | — | 정적 사이트 호스팅 | Google 서비스 약관 | 서비스 |
@@ -20,4 +21,5 @@
 - 글꼴은 별도 파일을 포함하지 않고 사용자 시스템 글꼴을 사용합니다.
 - HWPX 파일 형식의 명칭과 서식 구조는 (주)한글과컴퓨터의 개방형 문서 표준(KS X 6101 / OWPML)을 따릅니다. 본 프로젝트는 한글과컴퓨터와 무관합니다.
 - 표준서식(`template.hwpx`)은 제공받은 숙련도 평가 결과서 서식을 바탕으로, 입력 칸을 비우고 개인정보·이미지를 제거해 만들었습니다. 서식의 원 저작권은 해당 서식 제공 기관에 있습니다.
+- PRNT 플라크 세기 탭의 "AI 보정" 옵션에 쓰는 학습된 모델(`public/ml/prnt-plaque-model/`, 약 480KB, 118K 파라미터 소형 U-Net)은 공개 **VACVPlaque** 데이터셋(아래 항목, CC BY 4.0)으로 이 프로젝트가 직접 학습한 것입니다. 학습 데이터 자체는 포함하지 않았고, 학습된 가중치만 포함되어 있습니다.
 - PRNT 플라크 세기 탭의 검출 정확도를 가늠해 보려고, **VACVPlaque** 공개 데이터셋(백시니아 바이러스, 6웰, 크리스탈 바이올렛, 폰 사진 + 사람이 표시한 웰·플라크 마스크; CC BY 4.0; Hornung et al., DOI: 10.14278/rodare.4439, https://rodare.hzdr.de/record/4439)의 test 세트를 **개발 중 평가용으로만** 내려받아 썼습니다. 이 데이터는 사이트·저장소에 포함되지 않고 로컬 임시 폴더에서만 썼습니다.
