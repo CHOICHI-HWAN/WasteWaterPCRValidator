@@ -12,3 +12,6 @@ build/
 desktop/go/assets.bin
 public/downloads/
 public/releases.json
+
+src-tauri/target/
+src-tauri/gen/

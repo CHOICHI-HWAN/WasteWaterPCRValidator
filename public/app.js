@@ -595,11 +595,28 @@ async function capturePages() {
   for (const p of pages) out.push(await window.html2canvas(p, { scale: 2, backgroundColor: '#fff', useCORS: true, windowWidth: 1000, onclone: fixLayout }));
   return out;
 }
-function saveBlob(blob, name) {
+// 데스크톱 앱(Tauri)에서는 "다른 이름으로 저장" 창으로, 웹에서는 브라우저 다운로드로 저장한다.
+async function saveBlob(blob, name) {
+  const T = window.__TAURI__;
+  if (T?.dialog && T?.fs) {
+    try {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      const path = await T.dialog.save({ defaultPath: name, filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : [] });
+      if (!path) return;
+      await T.fs.writeFile(path, new Uint8Array(await blob.arrayBuffer()));
+      return;
+    } catch (e) { console.error(e); alert('저장하지 못했어요: ' + (e?.message ?? e)); return; }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+// 데스크톱 앱에서 <a download href="..."> (샘플·템플릿 받기)도 같은 저장 창을 쓰게 한다.
+if (window.__TAURI__) document.addEventListener('click', async (e) => {
+  const a = e.target.closest?.('a[download]'); if (!a || a.href.startsWith('blob:')) return;
+  e.preventDefault();
+  try { saveBlob(await (await fetch(a.href)).blob(), a.getAttribute('download') || 'download'); } catch (er) { alert('파일을 불러오지 못했어요: ' + er.message); }
+});
 // PNG 다운로드: 결과서 쪽들을 위→아래로 이어 붙인 한 장의 이미지
 async function downloadPng() {
   const btn = $('pvPng'), old = btn.textContent;

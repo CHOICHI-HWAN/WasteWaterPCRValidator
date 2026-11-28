@@ -2,6 +2,10 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를, 버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다.
 
+## [0.34.0] - 2026-11-28
+### 추가
+- **Rust + Tauri 데스크톱 앱** (`src-tauri/`): 웹 브라우저·내부 서버 없이 **자체 창(WebView)** 에서 세 탭을 그대로 열어요. 저장은 "다른 이름으로 저장" 창으로 처리해요(결과서 HWPX · PDF · PNG, CSV, 샘플 · 템플릿 받기). Windows 설치 파일은 GitHub Actions(`desktop-windows`)로 만들어요. Linux에서 컴파일하고 창이 뜨는 것까지 확인했어요.
+
 ## [0.33.0] - 2026-11-28
 ### 추가
 - **Probit 분석 탭에 결과 보고서**: 미리보기(인쇄 · PDF · PNG)와 **HWPX 내보내기**. 결재란, 분석 조건, 입력 자료(Wilson 95 % 구간), C05 · C50 · C95와 신뢰구간, 모형 · 적합도와 수식, Dose-Response 그래프와 표를 담아요. (HWPX는 XML · zip 형식만 확인했고 한글에서 직접 열어 보지는 못했어요.)

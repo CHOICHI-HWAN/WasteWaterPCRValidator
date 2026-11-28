@@ -1,0 +1,30 @@
+[package]
+name = "heavenly-lab"
+version = "0.34.0"
+description = "Park&Choi Heavenly Lab(LabPhobia) - 직선성 검증 · Probit(LoD) · 7500FAST"
+authors = ["치치박사&박박사"]
+license = "GPL-3.0-only"
+edition = "2021"
+
+[lib]
+name = "heavenly_lab_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

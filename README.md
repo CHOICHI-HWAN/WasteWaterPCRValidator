@@ -148,3 +148,8 @@ docs/img/                # screenshots
 ## Contributing and license
 
 Bug reports and ideas: [Issues](https://github.com/CHOICHI-HWAN/WasteWaterPCRValidator/issues). Licensed under the GNU General Public License v3.0 ([LICENSE](LICENSE)), © 2026 치치박사 & 박박사. Third-party components and their licenses (Jspreadsheet CE, jsuites, JSZip, html2canvas, jsPDF - MIT; Firebase SDK - Apache-2.0; Go runtime - BSD-3-Clause) are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+
+## Desktop app (Rust + Tauri)
+
+`src-tauri/` wraps the same `public/` web app in a native window (no browser, no local server). Build: `cd src-tauri && cargo build --release` (Linux needs webkit2gtk-4.1) or run the `desktop-windows` GitHub Actions workflow for a Windows installer (WebView2).
