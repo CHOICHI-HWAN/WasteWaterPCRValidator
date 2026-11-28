@@ -91,11 +91,13 @@ export function initPrnt({ $, saveBlob }) {
   }
   // 마우스 drag든 손가락 터치든 같은 좌표 계산을 쓴다. 터치는 touchend에 clientX/Y가 없어 changedTouches를 본다.
   const clientXY = (e) => (e.touches?.[0] ?? e.changedTouches?.[0] ?? e);
-  const pt = (e) => { const c = clientXY(e), b = canvas.getBoundingClientRect(), k = S.w / b.width; return { x: (c.clientX - b.left) * k, y: (c.clientY - b.top) * k }; };
+  // 가로·세로 배율을 따로 구한다 — 일부 브라우저는 CSS에서 canvas 가로세로 비율을 안 지키고 다르게 늘릴 때가 있어서
+  // (실측: Safari에서 폭만 줄고 높이는 원본 그대로라 좌표가 어긋남), 폭 기준 하나로 퉁치면 세로축이 틀어질 수 있다.
+  const pt = (e) => { const c = clientXY(e), b = canvas.getBoundingClientRect(); return { x: (c.clientX - b.left) * (S.w / b.width), y: (c.clientY - b.top) * (S.h / b.height) }; };
   function wellAt(x, y) { return S.wells.find((w) => { const dx = x - w.cx, dy = y - w.cy; return dx * dx + dy * dy <= w.r * w.r; }); }
   // 터치 목표 크기는 "화면에 보이는 크기"로 고정해야 한다 — 캔버스 내부 해상도는 그대로인데 폰에서 화면이 훨씬 작게 줄어 보이므로,
   // 고정 내부 픽셀 값은 폰에서 손가락 끝보다 훨씬 작아진다. 지금 화면 배율로 환산해 "화면 기준 cssPx"만큼의 내부 반지름을 돌려준다.
-  const touchRadiusPx = (cssPx) => cssPx * (S.w / canvas.getBoundingClientRect().width);
+  const touchRadiusPx = (cssPx) => { const b = canvas.getBoundingClientRect(); return cssPx * ((S.w / b.width + S.h / b.height) / 2); };
   const DRAG_HANDLE_CSS_PX = 20;
 
   // ---------- 플레이트 범위 드래그 지정 (마우스 + 터치 공용) ----------
