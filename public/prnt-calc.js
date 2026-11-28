@@ -183,7 +183,10 @@ export const EDGE_EXCLUDE_FRAC = 0.06;
 // ---------- 연결 요소(블롭) 검출: 한 웰, 한 문턱값 ----------
 // edgeExclude(px): 가장자리 플라크 제외(웰 테두리 효과 배제). minAreaPx/maxAreaPx: 면적 필터.
 export function detectBlobs(channel, w, h, well, threshold, opts = {}) {
-  const { edgeExclude = Math.round(well.r * EDGE_EXCLUDE_FRAC), minAreaPx = 3, maxAreaPx = Infinity } = opts;
+  // maxAspect/minFillRatio: 플라크(또는 맞붙은 플라크 몇 개)는 대체로 둥글넓적하다 — 반사광 줄무늬나 얼룩 같은
+  // 가늘고 긴 잡음(가로세로 비율이 아주 크거나, 테두리 상자 안을 듬성듬성 채우는 모양)은 플라크가 아니다(실측으로 확인됨:
+  // 일반 조명(반사광)으로 찍은 사진에서 하이라이트 줄무늬가 플라크로 잘못 잡혀 거짓양성을 크게 늘렸다).
+  const { edgeExclude = Math.round(well.r * EDGE_EXCLUDE_FRAC), minAreaPx = 3, maxAreaPx = Infinity, maxAspect = 3.5, minFillRatio = 0.3 } = opts;
   const r = well.r - edgeExclude, r2 = r * r;
   const x0 = Math.max(0, Math.floor(well.cx - r)), x1 = Math.min(w - 1, Math.ceil(well.cx + r));
   const y0 = Math.max(0, Math.floor(well.cy - r)), y1 = Math.min(h - 1, Math.ceil(well.cy + r));
@@ -208,8 +211,10 @@ export function detectBlobs(channel, w, h, well, threshold, opts = {}) {
       for (const [nx, ny] of nb) { if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue; const ni = ny * bw + nx; if (mask[ni] && !visited[ni]) { visited[ni] = 1; stack.push(ni); } }
     }
     if (area < minAreaPx || area > maxAreaPx) continue;
+    const mw = maxX - minX + 1, mh = maxY - minY + 1;
+    if (Math.max(mw, mh) / Math.min(mw, mh) > maxAspect || area / (mw * mh) < minFillRatio) continue; // 가늘고 긴 줄무늬·잡음 제외
     // 이 블롭만의 작은 마스크를 따로 떼어 둔다 — 나중에 "모양"으로 맞붙은 플라크 개수를 셀 때 쓴다(크기 비교 대신).
-    const mw = maxX - minX + 1, mh = maxY - minY + 1, compMask = new Uint8Array(mw * mh);
+    const compMask = new Uint8Array(mw * mh);
     for (let k = 0; k < pix.length; k += 2) compMask[(pix[k + 1] - minY) * mw + (pix[k] - minX)] = 1;
     blobs.push({ cx: x0 + sumX / area, cy: y0 + sumY / area, area, w: mw, h: mh, mask: compMask, maskW: mw, maskH: mh });
   }

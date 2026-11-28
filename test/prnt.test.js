@@ -87,6 +87,24 @@ const orMask = (a, b) => { const o = new Uint8Array(a.length); for (let i = 0; i
   console.log('detectBlobs tests passed');
 }
 
+// ---------- 가늘고 긴 줄무늬(반사광·잡음) 모양 제외 ----------
+// 실측(VACVPlaque 공개 데이터셋으로 검증)에서 찾은 실제 문제: 반사광 줄무늬가 플라크로 잘못 잡혀
+// 거짓양성을 크게 늘렸다. 둥글넓적한 플라크와 달리 가늘고 긴 줄무늬는 가로세로 비율이 크고 테두리 상자를 듬성듬성 채운다.
+{
+  const w = 100, h = 20, channel = new Float32Array(w * h).fill(50);
+  const well = { cx: 50, cy: 10, r: 48 };
+  // 가늘고 긴 줄무늬(80×3, 듬성듬성): 반사광 흔적 흉내
+  for (let x = 10; x < 90; x += 2) channel[10 * w + x] = 220; // 한 줄에 듬성듬성(2칸마다)
+  const streak = detectBlobs(channel, w, h, well, 150, { minAreaPx: 3, edgeExclude: 0 });
+  assert.equal(streak.length, 0, `가늘고 긴 줄무늬가 플라크로 잡힘(${streak.length}개)`);
+  // 대조: 둥근 플라크(지름 10)는 그대로 잡혀야 한다
+  const channel2 = new Float32Array(w * h).fill(50);
+  for (let y = 5; y <= 14; y++) for (let x = 45; x <= 54; x++) { const dx = x - 49.5, dy = y - 9.5; if (dx * dx + dy * dy <= 25) channel2[y * w + x] = 220; }
+  const round = detectBlobs(channel2, w, h, well, 150, { minAreaPx: 3, edgeExclude: 0 });
+  assert.equal(round.length, 1, `둥근 플라크까지 걸러짐(${round.length}개)`);
+  console.log('줄무늬 잡음 제외 tests passed');
+}
+
 // ---------- 앙상블 검출: 밝기만 다른 두 '채널'이 같은 블롭에 동의 ----------
 {
   const w = 60, h = 60, well = { cx: 30, cy: 30, r: 25 };
