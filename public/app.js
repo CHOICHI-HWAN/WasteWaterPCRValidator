@@ -11,6 +11,7 @@ import { initSidePanel } from './releases.js';
 import { probitFit } from './probit.js';
 import { plotSvg, fmtC, doseTable } from './probit-ui.js';
 import { initEds } from './eds-ui.js';
+import { initPrnt } from './prnt-ui.js';
 import { buildProbitModel, svgToPng } from './probit-report.js';
 import { renderPages, buildHwpx } from './eds-report.js';
 import { APP_INFO } from './version.js';
@@ -525,7 +526,7 @@ function cell(newS, old, flag, attrs = '') {
 }
 
 let pvMode = 'lin';
-const pvName = (ext) => (pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.${ext}` : pvMode === 'pb' ? `Probit_LoD_결과서.${ext}` : `BCoV_숙련도평가_결과서.${ext}`);
+const pvName = (ext) => (pvMode === 'eds' ? `${eds.name()}_7500FAST_결과서.${ext}` : pvMode === 'pb' ? `Probit_LoD_결과서.${ext}` : pvMode === 'prnt' ? `${prnt.name()}_PRNT_결과서.${ext}` : `BCoV_숙련도평가_결과서.${ext}`);
 async function renderPreview() {
   pvMode = 'lin'; $('pvDiff').closest('label').hidden = false;
   try { await ensureTemplate(); } catch (e) { $('pvNote').textContent = e.message; }
@@ -727,6 +728,10 @@ const MENUS = {
     title: '7500 Fast 결과 뷰어', sub: 'Applied Biosystems 7500 Fast의 .eds 결과 파일을 끌어다 놓으면 플레이트 · 증폭 곡선 · Ct 결과를 바로 보여드려요.', doc: '7500 Fast 결과 뷰어', foot: '7500 Fast 결과 뷰어 (.eds) — 플레이트 · 증폭 곡선 · Ct',
     beta: '<b>베타 테스트 버전</b>입니다. 장비 소프트웨어(7500 Software)의 화면·내보내기 값과 <b>대조해 확인</b>한 뒤 사용해 주세요. 파일은 이 브라우저 안에서만 읽어요.',
     about: 'Applied Biosystems <b>7500 Fast</b>가 저장한 <b>.eds</b> 결과 파일을 열어 플레이트 배치, 증폭 곡선, Ct 표를 보여주는 뷰어.', abeta: '베타 · 장비 소프트웨어와 대조 권장' },
+  prnt: { panel: 'panelPrnt', btn: 'mtPrnt', hash: '#prnt', theme: 'prnttheme', icon: 'icoPrnt', color: '#2f9e44', chip: 'BETA · 아직 사람이 센 값과 비교 검증 전', fx: false, topics: 'topicsPrnt',
+    title: 'PRNT 플라크 세기', sub: '크리스탈 바이올렛으로 염색한 웰 플레이트 사진을 올리면 웰을 찾아 플라크(흰 반점)를 세고 PRNT50/80/90을 계산해요.', doc: 'PRNT 플라크 세기', foot: 'PRNT 플라크 세기 — 웰 자동 검출 · 앙상블 검출 · PRNT50/80/90',
+    beta: '<b>베타 · v1</b>입니다. 자동 검출은 아직 실제 사람이 센 값과 비교 검증하지 못했어요. 결과를 그대로 쓰지 말고 꼭 눈으로 확인·보정한 뒤 사용해 주세요.',
+    about: '크리스탈 바이올렛으로 염색한 웰 플레이트 사진에서 <b>웰을 찾아 플라크를 세고</b>, 희석배수를 입력하면 <b>PRNT50 · PRNT80 · PRNT90</b>을 로그 보간으로 계산해요.', abeta: '베타 v1 · 사람이 센 값과 비교 검증 전' },
 };
 function showMenu(m) {
   const cfg = MENUS[m] ?? MENUS.main; m = MENUS[m] ? m : 'main';
@@ -743,12 +748,13 @@ function showMenu(m) {
 }
 $('mtMain').addEventListener('click', () => showMenu('main'));
 $('mtEds').addEventListener('click', () => showMenu('eds'));
+$('mtPrnt').addEventListener('click', () => showMenu('prnt'));
 $('mtProbit').addEventListener('click', () => { showMenu('probit'); recalcPb(); });
 $('pbCi').addEventListener('change', recalc);
 const pbTsv = (sep) => ['Probability', 'Dose', '95% CI lower', '95% CI upper'].join(sep) + '\n' + pbRows.map(([p, c]) => [p.toFixed(3), c.c, c.bounded ? c.lo : '', c.bounded ? c.hi : ''].join(sep)).join('\n');
 $('pbCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(pbTsv('\t')); $('pbCopy').textContent = '✅ 복사됨'; setTimeout(() => { $('pbCopy').textContent = '📋 표 복사'; }, 1500); } catch { $('pbCopy').textContent = '복사 실패'; } });
 $('pbCsv').addEventListener('click', () => saveBlob(new Blob(['\ufeff' + pbTsv(',')], { type: 'text/csv;charset=utf-8' }), 'Probit_dose_response.csv'));
-if (location.hash === '#probit') showMenu('probit'); else if (location.hash === '#7500fast') showMenu('eds');
+if (location.hash === '#probit') showMenu('probit'); else if (location.hash === '#7500fast') showMenu('eds'); else if (location.hash === '#prnt') showMenu('prnt');
 const eds = initEds({ $, saveBlob });
 async function edsPreview() {
   const msg = $('edsExpMsg'); msg.textContent = '';
@@ -766,6 +772,27 @@ async function edsExport() {
 }
 $('edsPreview').addEventListener('click', edsPreview);
 $('edsHwpx').addEventListener('click', edsExport);
+
+// ---- PRNT 플라크 보고서 (미리보기 · HWPX) ----
+const prnt = initPrnt({ $, saveBlob });
+async function prntPreview() {
+  const msg = $('prntExpMsg'); msg.textContent = '';
+  try {
+    const r = await prnt.report();
+    pvMode = 'prnt'; $('pvDiff').closest('label').hidden = true; $('pvBody').innerHTML = `<div class="paper">${r.pages.join('')}</div>`;
+    $('pvNote').innerHTML = 'PRNT 플라크 결과 보고서 · <b>HWPX로 내보내기</b>, 인쇄, PDF, PNG를 쓸 수 있어요.';
+    $('preview').showModal();
+  } catch (e) { msg.textContent = '미리보기 실패: ' + e.message; }
+}
+async function prntExport() {
+  const msg = $('prntExpMsg'); msg.textContent = 'HWPX 만드는 중…';
+  try { await prnt.exportHwpx(); msg.textContent = '✅ HWPX로 저장했어요. 한글에서 열어 확인해 주세요 (아직 한글에서 직접 열어 보지는 못했어요).'; $('pvNote').textContent = ''; }
+  catch (e) { msg.textContent = 'HWPX 내보내기 실패: ' + e.message; }
+}
+$('prntPreview').addEventListener('click', prntPreview);
+$('prntHwpx').addEventListener('click', prntExport);
+$('dlPrntHwpx').addEventListener('click', () => $('prntHwpx').click());
+$('dlPrntPreview').addEventListener('click', () => $('prntPreview').click());
 
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {
@@ -884,7 +911,7 @@ $('plotPng').addEventListener('click', downloadPlotPng);
 $('btnXlsx').addEventListener('click', downloadXlsx);
 document.addEventListener('click', (e) => { if (e.target.id === 'stockReset') { const s = $('stock'); s.value = String(BASE_STOCK); s.dispatchEvent(new Event('input', { bubbles: true })); refreshNum(); } });
 $('btnExport').addEventListener('click', doExport);
-$('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : pvMode === 'pb' ? pbExport() : doExport()));
+$('pvExport').addEventListener('click', () => (pvMode === 'eds' ? edsExport() : pvMode === 'pb' ? pbExport() : pvMode === 'prnt' ? prntExport() : doExport()));
 
 // 정보 창 (제작자 · 라이선스 · 서드파티 · 변경 이력)
 $('ver').textContent = `v${VERSION}`;

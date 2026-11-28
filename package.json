@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test/calc.test.js && node test/num.test.js && node test/probit.test.js && node test/eds.test.js",
+    "test": "node test/calc.test.js && node test/num.test.js && node test/probit.test.js && node test/eds.test.js && node test/prnt.test.js",
     "serve": "firebase serve --only hosting",
     "deploy": "node tools/sync-docs.js && node tools/release.mjs && firebase deploy --only hosting",
     "sync-docs": "node tools/sync-docs.js",

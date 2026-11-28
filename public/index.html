@@ -175,6 +175,13 @@
   @media (prefers-color-scheme: dark) { body.edstheme { --bg:#1a120d; --card:#271a13; --fg:#f6e9df; --mut:#c0a590; --line:#40291c; --acc:#ff9a62; --acc2:#ffc069; --accsoft:#36231a; } }
   body.edstheme .hero { background:linear-gradient(135deg,#c2410c 0%,#f59f00 100%); }
   body.edstheme .step, body.edstheme button.primary { box-shadow:0 3px 8px rgba(217,72,15,.35); }
+  /* PRNT 플라크 테마 (바이러스 녹색) */
+  body.prnttheme { --bg:#f2f9f2; --fg:#153321; --mut:#5f8370; --line:#dcefe1; --acc:#2f9e44; --acc2:#0ca678; --accsoft:#e3f6e8; --shadow:0 8px 28px rgba(20,120,60,.09); --shadow-s:0 2px 8px rgba(20,120,60,.08); }
+  @media (prefers-color-scheme: dark) { body.prnttheme { --bg:#0d1a12; --card:#162a1c; --fg:#e2f5e8; --mut:#9ac4ab; --line:#234634; --acc:#6fdb8a; --acc2:#5fe3c5; --accsoft:#1b3526; } }
+  body.prnttheme .hero { background:linear-gradient(135deg,#1a7f37 0%,#0ca678 100%); }
+  body.prnttheme .step, body.prnttheme button.primary { box-shadow:0 3px 8px rgba(47,158,68,.35); }
+  .prntwrap { position:relative; border:1px solid var(--line); border-radius:14px; overflow:auto; background:#fff; }
+  .prntwrap canvas { display:block; max-width:100%; cursor:crosshair; touch-action:none; }
   .dlitem[hidden] { display:none !important; }
   .paper table.apv th, .paper table.apv td { font-size:11px; }
   .fxbar { flex:1 1 320px; font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--card); min-height:20px; word-break:break-all; }
@@ -272,6 +279,7 @@
         <svg id="icoWater" width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M24 5C24 5 10 20.5 10 30a14 14 0 0028 0C38 20.5 24 5 24 5z" fill="#fff" fill-opacity=".92"/><path d="M17 31c0 3.9 3.1 7 7 7" stroke="#2f80ed" stroke-width="3" stroke-linecap="round"/></svg>
         <svg id="icoEds" style="display:none" width="36" height="36" viewBox="0 0 48 48" fill="none"><rect x="6" y="8" width="36" height="32" rx="5" stroke="#fff" stroke-width="3"/><path d="M10 34c5 0 6-14 12-14s5 14 16 14" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="14" cy="14" r="2" fill="#fff"/><circle cx="22" cy="14" r="2" fill="#fff"/><circle cx="30" cy="14" r="2" fill="#fff"/></svg>
         <svg id="icoProbit" style="display:none" width="36" height="36" viewBox="0 0 48 48" fill="none"><path d="M5 40h38" stroke="#fff" stroke-opacity=".7" stroke-width="2.5" stroke-linecap="round"/><path d="M5 38C14 38 16 10 24 10s10 28 19 28" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><path d="M24 10v28" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-dasharray="3 3"/><circle cx="24" cy="10" r="3.2" fill="#fff"/></svg>
+        <svg id="icoPrnt" style="display:none" width="36" height="36" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="17" stroke="#fff" stroke-width="3"/><circle cx="18" cy="19" r="2" fill="#fff"/><circle cx="27" cy="16" r="1.6" fill="#fff" fill-opacity=".8"/><circle cx="31" cy="24" r="2.2" fill="#fff"/><circle cx="20" cy="29" r="1.8" fill="#fff" fill-opacity=".8"/><circle cx="26" cy="31" r="1.4" fill="#fff" fill-opacity=".7"/></svg>
       </div>
       <div>
         <div class="brand" id="brand">Park&amp;Choi Heavenly Lab(LabPhobia)</div>
@@ -296,6 +304,7 @@
     <button id="mtMain" role="tab" class="on">📈 직선성 검증 (Linearity Test)</button>
     <button id="mtProbit" role="tab">🧬 Probit 분석 (LoD)</button>
     <button id="mtEds" role="tab">🧫 7500FAST</button>
+    <button id="mtPrnt" role="tab">🦠 PRNT 플라크</button>
   </div>
   <div id="panelMain">
   <details class="card guide" open>
@@ -524,6 +533,54 @@
   </div>
   </div>
 
+  <div id="panelPrnt" hidden>
+  <section class="card">
+    <div class="chead"><h2>🦠 PRNT 플라크 세기 <span class="tag opt">베타 · v1</span></h2><span class="hint">크리스탈 바이올렛으로 염색한 웰 플레이트 사진을 올리면 웰을 찾아 플라크(흰 반점)를 세요. <b>정확도는 실제 사람이 센 값과 비교해야만 확인돼요</b> — 지금은 검증 전이에요.</span></div>
+    <label class="drop" id="prntDrop" style="cursor:pointer"><span style="font-size:28px">📷</span><span><b>플레이트 사진을 끌어다 놓거나 눌러서 선택</b><br><small class="note" style="margin:0">사진은 이 컴퓨터의 브라우저 안에서만 읽어요. 서버로 올라가지 않아요.</small></span><input id="prntFile" type="file" accept="image/*" hidden></label>
+    <div class="row" style="margin:10px 0 0"><button id="prntSample" type="button">🧪 샘플 불러오기 (가상 데이터)</button></div>
+    <div id="prntMsg" class="note"></div>
+  </section>
+  <div id="prntBody" hidden>
+    <section class="card">
+      <div class="chead"><h2>1) 플레이트 범위 · 웰 검출</h2><span class="hint">사진 위를 드래그해 플레이트 전체 범위를 표시한 다음 "웰 자동 검출"을 눌러 주세요. 중심이 어긋나면 원 가운데 점을 드래그해 옮길 수 있어요.</span></div>
+      <div class="row">
+        <label>플레이트<select id="prntWellType" class="txt"><option value="6">6웰</option><option value="12" selected>12웰</option><option value="24">24웰</option></select></label>
+        <label class="chk" title="사진이 세로(portrait)로 찍혀 행·열이 바뀌어 보이면 체크하세요"><input type="checkbox" id="prntSwapRC"> 행↔열 바꾸기(세로 사진)</label>
+        <button id="prntDetectWells" type="button">🔍 웰 자동 검출</button>
+      </div>
+      <div class="prntwrap"><canvas id="prntCanvas"></canvas></div>
+    </section>
+    <section class="card">
+      <div class="chead"><h2>2) 플라크 검출</h2><span class="hint">여러 채널 × 여러 문턱값으로 반복 검출한 뒤 다수결로 플라크를 확정해요(동의 비율이 낮으면 눈으로 확인).</span></div>
+      <div class="row" id="prntChannels">
+        <label class="chk"><input type="checkbox" value="green" checked> 초록 채널</label>
+        <label class="chk"><input type="checkbox" value="invSat" checked> 채도 역(흰색 강조)</label>
+        <label class="chk"><input type="checkbox" value="lightness"> 명도</label>
+        <label title="웰 지름(이미 찾은 웰의 화면 지름 ÷ 이 플레이트 규격의 표준 지름)으로 자동 환산해요. 자를 따로 댈 필요 없어요.">최소 플라크 직경(mm)<input id="prntMinDiam" class="txt" type="text" inputmode="decimal" placeholder="선택" style="width:90px"></label>
+        <button id="prntRunDetect" class="primary" type="button">▶ 검출 실행</button>
+        <label class="chk" title="켜고 사진을 클릭하면 그 위치에 플라크를 추가하고, 기존 표시를 클릭하면 삭제해요."><input type="checkbox" id="prntCorrect"> ✏️ 보정 모드(클릭으로 추가·삭제)</label>
+      </div>
+      <p class="note" id="prntScaleNote">웰을 먼저 자동 검출하면 그 웰의 표준 지름을 기준으로 1mm당 픽셀 수를 자동으로 계산해요(자 없이도 가능).</p>
+    </section>
+    <section class="card">
+      <div class="chead"><h2>📋 웰별 결과</h2><span class="hint">대조군(바이러스만, 항체 없음)을 체크하고, 나머지 웰에 희석배수를 입력하면 PRNT50/80/90을 계산해요.</span></div>
+      <div class="scroll" id="prntTable"></div>
+      <div class="row" style="margin-top:10px"><button id="prntCalcPrnt" type="button">🧮 PRNT50/80/90 계산</button></div>
+      <p class="note" id="prntPrntMsg"></p>
+      <div class="edsgrid" id="prntPrntOut"></div>
+      <p class="fx">감소율(%) = (1 − 플라크 수 ÷ 대조군 평균) × 100 &nbsp;·&nbsp; PRNTx = 50%(또는 80/90%)를 낀 두 희석의 로그 보간</p>
+    </section>
+    <section class="card">
+      <div class="chead"><h2>📤 결과 저장</h2><span class="hint">지금 표시된 검출·보정 결과를 그대로 보고서로 만들어요.</span></div>
+      <div class="row" style="margin-bottom:0">
+        <button id="prntPreview">👀 보고서 미리보기 (인쇄 · PDF · PNG)</button>
+        <button id="prntHwpx" class="primary">📥 HWPX로 내보내기</button>
+      </div>
+      <p class="note" id="prntExpMsg"></p>
+    </section>
+  </div>
+  </div>
+
   <aside class="side" id="releases" aria-label="저장소 정보와 다운로드">
     <div class="sidecard">
       <section class="sbox">
@@ -540,6 +597,7 @@
         <div class="topics" id="topicsMain"><span>BCoV</span><span>RT-qPCR</span><span>wastewater</span><span>standard-curve</span><span>hwpx</span><span>excel</span></div>
         <div class="topics" id="topicsEds" style="display:none"><span>7500 Fast</span><span>.eds</span><span>qPCR</span><span>Ct</span><span>amplification</span></div>
         <div class="topics" id="topicsPb" style="display:none"><span>probit</span><span>LoD</span><span>C95</span><span>dose-response</span><span>Fieller</span><span>binomial</span></div>
+        <div class="topics" id="topicsPrnt" style="display:none"><span>PRNT</span><span>plaque</span><span>crystal violet</span><span>neutralization</span><span>PRNT50</span></div>
       </section>
       <section class="sbox">
         <h3>Releases <span class="count" id="relCount">…</span></h3>
@@ -563,6 +621,9 @@
         <button class="dlitem" data-tabs="eds" id="dlEdsCsv" type="button" hidden><span class="ai">🗒️</span><span>결과표 CSV<small>현재 필터 · 정렬 · 방향 그대로</small></span></button>
         <button class="dlitem" data-tabs="eds" id="dlEdsPng" type="button" hidden><span class="ai">🖼️</span><span>증폭 곡선 PNG<small>1560 × 880</small></span></button>
         <a class="dlitem" data-tabs="eds" id="dlEdsSample" href="samples/demo_7500fast.eds" download="demo_7500fast.eds" hidden><span class="ai">🧪</span><span>샘플 .eds (가상 데이터)<small>7500FAST 탭 체험용</small></span></a>
+        <button class="dlitem" data-tabs="prnt" id="dlPrntHwpx" type="button" hidden><span class="ai">📝</span><span>PRNT 결과서 HWPX<small>웰별 결과 · PRNT50/80/90 · 사진</small></span></button>
+        <button class="dlitem" data-tabs="prnt" id="dlPrntPreview" type="button" hidden><span class="ai">👀</span><span>결과서 미리보기 · PDF · PNG<small>인쇄도 가능</small></span></button>
+        <a class="dlitem" data-tabs="prnt" id="dlPrntSample" href="samples/demo_prnt.png" download="demo_prnt.png" hidden><span class="ai">🧪</span><span>샘플 플레이트 사진 (가상 데이터)<small>PRNT 탭 체험용</small></span></a>
       </section>
       <section class="sbox">
         <h3>Contributors <span class="count">2</span></h3>
