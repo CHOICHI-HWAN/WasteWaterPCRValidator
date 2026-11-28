@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // PRNT 플라크 세기 화면: 사진 올리기 → 플레이트 범위 지정 → 웰 자동 검출(+수정) → 앙상블 검출(워커) → 보정 → 결과표/PRNT50·80·90 → 보고서
-import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate, detectColorBlobs, inferWellGrid } from './prnt-calc.js';
+import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate, detectColorBlobs, inferWellGrid, EDGE_EXCLUDE_FRAC } from './prnt-calc.js';
 import { buildModel } from './prnt-report.js';
 import { renderPages, buildHwpx } from './eds-report.js';
 import { VERSION, APP_INFO } from './version.js';
@@ -270,7 +270,8 @@ export function initPrnt({ $, saveBlob }) {
     if (!S.wells.length || !S.results.size) throw new Error('먼저 웰을 검출해 주세요');
     const wells = S.wells.map((w) => { const k = key(w.row, w.col), r = S.results.get(k) ?? { count: 0, judge: 'ok', confidence: 1 }, m = S.meta.get(k) ?? {}; return { row: w.row, col: w.col, count: r.count, judge: r.judge, confidence: r.confidence, dilution: m.dilution, isControl: m.isControl }; });
     const data = { wells, wellType: S.wellType, controlMean: S.controlMean, prnt: S.prnt, conditions: { stain: '크리스탈 바이올렛', minDiamMm: S.minDiamMm || null, channels: S.channels, totalRuns: S.lastTotalRuns,
-      scaleNote: S.pxPerMm ? `1mm ≈ ${S.pxPerMm.toFixed(1)}px (${S.wellType}웰 표준 지름 ${STANDARD_WELL_DIAM_MM[S.wellType]}mm 기준 자동 환산, 자 사용 안 함)` : '웰 지름 환산 안 함' } };
+      scaleNote: S.pxPerMm ? `1mm ≈ ${S.pxPerMm.toFixed(1)}px (${S.wellType}웰 표준 지름 ${STANDARD_WELL_DIAM_MM[S.wellType]}mm 기준 자동 환산, 자 사용 안 함)` : '웰 지름 환산 안 함',
+      edgeExcludeNote: `웰 반지름의 ${(EDGE_EXCLUDE_FRAC * 100).toFixed(0)}%(면적 약 ${((1 - (1 - EDGE_EXCLUDE_FRAC) ** 2) * 100).toFixed(0)}%) — 벽 그림자·메니스커스 구간 제외` } };
     const images = { plate: await canvasPng() };
     const model = buildModel(data, { fileName: S.fileName, version: VERSION, program: APP_INFO.name, images });
     return { model, images, pages: renderPages(model, images), name: baseName() };

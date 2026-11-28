@@ -176,10 +176,14 @@ export function discStats(channel, w, h, well, opts = {}) {
   return { mean, std, n: vals.length, p };
 }
 
+// 가장자리 제외 비율(웰 반지름의 몇 %를 테두리로 보고 뺄지) — 메니스커스·벽 그림자·반사로 염색이 왜곡되는 구간을 피한다.
+// 반지름의 6% = 웰 전체 면적의 약 11.6%(1 − 0.94²). 사용자와 상의해 이 값으로 유지하기로 함(2026-11-28).
+export const EDGE_EXCLUDE_FRAC = 0.06;
+
 // ---------- 연결 요소(블롭) 검출: 한 웰, 한 문턱값 ----------
 // edgeExclude(px): 가장자리 플라크 제외(웰 테두리 효과 배제). minAreaPx/maxAreaPx: 면적 필터.
 export function detectBlobs(channel, w, h, well, threshold, opts = {}) {
-  const { edgeExclude = Math.round(well.r * 0.06), minAreaPx = 3, maxAreaPx = Infinity } = opts;
+  const { edgeExclude = Math.round(well.r * EDGE_EXCLUDE_FRAC), minAreaPx = 3, maxAreaPx = Infinity } = opts;
   const r = well.r - edgeExclude, r2 = r * r;
   const x0 = Math.max(0, Math.floor(well.cx - r)), x1 = Math.min(w - 1, Math.ceil(well.cx + r));
   const y0 = Math.max(0, Math.floor(well.cy - r)), y1 = Math.min(h - 1, Math.ceil(well.cy + r));
