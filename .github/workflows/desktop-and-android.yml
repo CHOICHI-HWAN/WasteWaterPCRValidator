@@ -58,10 +58,8 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
       - name: Build the APK (debug-signed, installable)
         working-directory: src-tauri
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
         run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973" ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
           cargo tauri android init
           cargo tauri android build --apk --debug --target aarch64 --target armv7
       - uses: actions/upload-artifact@v4
