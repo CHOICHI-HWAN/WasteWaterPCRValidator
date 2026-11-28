@@ -559,6 +559,7 @@
         <label title="웰 지름(이미 찾은 웰의 화면 지름 ÷ 이 플레이트 규격의 표준 지름)으로 자동 환산해요. 자를 따로 댈 필요 없어요.">최소 플라크 직경(mm)<input id="prntMinDiam" class="txt" type="text" inputmode="decimal" placeholder="선택" style="width:90px"></label>
         <button id="prntRunDetect" class="primary" type="button">▶ 검출 실행</button>
         <label class="chk" title="켜고 사진을 클릭하면 그 위치에 플라크를 추가하고, 기존 표시를 클릭하면 삭제해요."><input type="checkbox" id="prntCorrect"> ✏️ 보정 모드(클릭으로 추가·삭제)</label>
+        <button id="prntSavePng" type="button">🖼️ 검출 결과 사진 저장 (PNG)</button>
       </div>
       <p class="note" id="prntScaleNote">웰을 먼저 자동 검출하면 그 웰의 표준 지름을 기준으로 1mm당 픽셀 수를 자동으로 계산해요(자 없이도 가능).</p>
     </section>
@@ -623,6 +624,7 @@
         <a class="dlitem" data-tabs="eds" id="dlEdsSample" href="samples/demo_7500fast.eds" download="demo_7500fast.eds" hidden><span class="ai">🧪</span><span>샘플 .eds (가상 데이터)<small>7500FAST 탭 체험용</small></span></a>
         <button class="dlitem" data-tabs="prnt" id="dlPrntHwpx" type="button" hidden><span class="ai">📝</span><span>PRNT 결과서 HWPX<small>웰별 결과 · PRNT50/80/90 · 사진</small></span></button>
         <button class="dlitem" data-tabs="prnt" id="dlPrntPreview" type="button" hidden><span class="ai">👀</span><span>결과서 미리보기 · PDF · PNG<small>인쇄도 가능</small></span></button>
+        <button class="dlitem" data-tabs="prnt" id="dlPrntPng" type="button" hidden><span class="ai">🖼️</span><span>검출 결과 사진 PNG<small>웰 원 · 플라크 표시 포함</small></span></button>
         <a class="dlitem" data-tabs="prnt" id="dlPrntSample" href="samples/demo_prnt.png" download="demo_prnt.png" hidden><span class="ai">🧪</span><span>샘플 플레이트 사진 (가상 데이터)<small>PRNT 탭 체험용</small></span></a>
       </section>
       <section class="sbox">

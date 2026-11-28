@@ -793,6 +793,7 @@ $('prntPreview').addEventListener('click', prntPreview);
 $('prntHwpx').addEventListener('click', prntExport);
 $('dlPrntHwpx').addEventListener('click', () => $('prntHwpx').click());
 $('dlPrntPreview').addEventListener('click', () => $('prntPreview').click());
+$('dlPrntPng').addEventListener('click', () => $('prntSavePng').click());
 
 // 엑셀 계산 시트: 현재 입력값이 채워진, 수식이 살아 있는 .xlsx (매크로 없음)
 function excelState() {

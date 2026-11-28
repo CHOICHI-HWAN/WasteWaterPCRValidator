@@ -208,6 +208,15 @@ export function initPrnt({ $, saveBlob }) {
 
   // ---------- 보정 모드: 클릭으로 플라크 추가·삭제 ----------
   $('prntCorrect').addEventListener('change', () => { S.correctMode = $('prntCorrect').checked; });
+  // 검출 표시(웰 원·플라크 마커)가 그려진 화면 그대로를 사진 한 장(PNG)으로 저장 — 보고서 없이 사진만 필요할 때
+  $('prntSavePng').addEventListener('click', () => {
+    const msg = $('prntMsg');
+    if (!S.img) { msg.className = 'pberr'; msg.textContent = '먼저 사진을 올려 주세요.'; return; }
+    canvas.toBlob((blob) => {
+      if (!blob) { msg.className = 'pberr'; msg.textContent = 'PNG로 저장하지 못했어요.'; return; }
+      saveBlob(blob, `${baseName()}_검출결과.png`);
+    }, 'image/png');
+  });
   function correctClick(p) {
     const well = wellAt(p.x, p.y); if (!well) return;
     const k = key(well.row, well.col), r = S.results.get(k) ?? { count: 0, judge: 'ok', blobs: [], confidence: 1, manual: true };
