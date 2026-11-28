@@ -13,6 +13,7 @@ export function toChannel(pixels, w, h, mode = 'lightness') {
     const r = pixels[i * 4], g = pixels[i * 4 + 1], b = pixels[i * 4 + 2];
     if (mode === 'green') out[i] = g;
     else if (mode === 'invSat') { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx; out[i] = 255 * (1 - sat); }
+    else if (mode === 'saturation') { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx; out[i] = 255 * sat; }
     else out[i] = (r + g + b) / 3;
   }
   return out;
@@ -32,6 +33,109 @@ export function flattenIllumination(gray, w, h, radius) {
   const bg = boxBlur(gray, w, h, radius), out = new Float32Array(w * h);
   for (let i = 0; i < out.length; i++) out[i] = gray[i] - bg[i] + 128;
   return out;
+}
+
+// ---------- 진짜 자동 검출: 사용자가 범위를 그리지 않아도, 염색된 웰(채도 높은 원형 얼룩)을 사진에서 직접 찾는다 ----------
+// 1) detectColorBlobs: 다운샘플한 그리드에서 "채도가 뚜렷한" 픽셀만 남기고(배경·검은 띠·그림자는 채도가 낮다),
+//    침식(erode)으로 서로 거의 맞닿은 웰 사이의 얇은 다리를 끊은 뒤 연결 요소를 찾는다.
+export function detectColorBlobs(pixels, w, h, opts = {}) {
+  const { gridMax = 260, satThr = 0.5, erode = 1, minAreaFrac = 0.0012, aspectMin = 0.5, aspectMax = 2.0 } = opts;
+  const scale = Math.min(1, gridMax / Math.max(w, h));
+  const gw = Math.max(1, Math.round(w * scale)), gh = Math.max(1, Math.round(h * scale));
+  let mask = new Uint8Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    const sx = Math.min(w - 1, Math.floor(((gx + 0.5) / gw) * w)), sy = Math.min(h - 1, Math.floor(((gy + 0.5) / gh) * h));
+    const i = (sy * w + sx) * 4, r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx === 0 ? 0 : (mx - mn) / mx;
+    mask[gy * gw + gx] = sat > satThr ? 1 : 0;
+  }
+  for (let k = 0; k < erode; k++) {
+    const nm = new Uint8Array(gw * gh);
+    for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+      if (!mask[gy * gw + gx]) continue;
+      let ok = true;
+      for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1 && ok; dx++) {
+        const ny = gy + dy, nx = gx + dx;
+        if (ny < 0 || nx < 0 || ny >= gh || nx >= gw || !mask[ny * gw + nx]) ok = false;
+      }
+      nm[gy * gw + gx] = ok ? 1 : 0;
+    }
+    mask = nm;
+  }
+  const visited = new Uint8Array(gw * gh), blobs = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i] || visited[i]) continue;
+    const stack = [i]; visited[i] = 1; let sumX = 0, sumY = 0, area = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    while (stack.length) {
+      const p = stack.pop(), py = (p / gw) | 0, px = p % gw;
+      sumX += px; sumY += py; area++;
+      minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+      for (const [nx, ny] of [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+        const ni = ny * gw + nx; if (mask[ni] && !visited[ni]) { visited[ni] = 1; stack.push(ni); }
+      }
+    }
+    const bw = maxX - minX + 1, bh = maxY - minY + 1, aspect = bw / bh;
+    if (area < minAreaFrac * gw * gh || aspect < aspectMin || aspect > aspectMax) continue;
+    blobs.push({ cx: ((sumX / area + 0.5) / gw) * w, cy: ((sumY / area + 0.5) / gh) * h, area, bw, bh });
+  }
+  return blobs;
+}
+
+// 1차원 값들을 오름차순으로 정렬한 뒤, 가장 큰 (k-1)개의 간격을 기준으로 k개 그룹으로 나눈다(균등 그리드 가정).
+function clusterInto(items, k, valueOf) {
+  if (k <= 1 || items.length <= k) return [items.slice()];
+  const sorted = items.slice().sort((a, b) => valueOf(a) - valueOf(b));
+  const gaps = [];
+  for (let i = 1; i < sorted.length; i++) gaps.push({ i, gap: valueOf(sorted[i]) - valueOf(sorted[i - 1]) });
+  gaps.sort((a, b) => b.gap - a.gap);
+  const cuts = gaps.slice(0, k - 1).map((g) => g.i).sort((a, b) => a - b);
+  const groups = []; let start = 0;
+  for (const c of cuts) { groups.push(sorted.slice(start, c)); start = c; }
+  groups.push(sorted.slice(start));
+  return groups;
+}
+
+// 2) inferWellGrid: detectColorBlobs가 찾은 후보들 중 "서로 크기가 비슷한" 것들만 남기고(스티커 메모 같은 엉뚱한 큰 덩어리 제외),
+//    남은 후보들의 x·y 좌표를 rows×cols 그리드로 묶어 웰 중심을 추정한다. 자신 없으면(개수가 너무 안 맞으면) null.
+export function inferWellGrid(blobs, rows, cols, opts = {}) {
+  const { sizeTolLow = 0.4, sizeTolHigh = 2.4, minMatchFrac = 0.7, marginRatio = 0.42 } = opts;
+  if (!blobs.length) return null;
+  const areas = blobs.map((b) => b.area).sort((a, b) => a - b);
+  let median = areas[Math.floor(areas.length / 2)] || 1;
+  let kept = blobs.filter((b) => b.area >= median * sizeTolLow && b.area <= median * sizeTolHigh);
+  if (kept.length >= 3) { // 2차: 남은 것들만으로 중앙값을 다시 구해 이상치 영향을 줄인다
+    const a2 = kept.map((b) => b.area).sort((x, y) => x - y);
+    median = a2[Math.floor(a2.length / 2)] || median;
+    kept = kept.filter((b) => b.area >= median * sizeTolLow && b.area <= median * sizeTolHigh);
+  }
+  const expected = rows * cols;
+  if (kept.length < Math.max(2, expected * minMatchFrac)) return null;
+
+  const rowGroups = clusterInto(kept, rows, (b) => b.cy);
+  const colGroups = clusterInto(kept, cols, (b) => b.cx);
+  if (rowGroups.length < rows || colGroups.length < cols) return null;
+  const rowCenters = rowGroups.map((g) => g.reduce((a, b) => a + b.cy, 0) / g.length);
+  const colCenters = colGroups.map((g) => g.reduce((a, b) => a + b.cx, 0) / g.length);
+  const rowOf = (b) => { let bi = 0, bd = Infinity; rowCenters.forEach((c, i) => { const d = Math.abs(c - b.cy); if (d < bd) { bd = d; bi = i; } }); return bi; };
+  const colOf = (b) => { let bi = 0, bd = Infinity; colCenters.forEach((c, i) => { const d = Math.abs(c - b.cx); if (d < bd) { bd = d; bi = i; } }); return bi; };
+  const cellArea = new Map(); // "row,col" -> 가장 큰 블롭(여러 개가 같은 칸에 들어오면 그걸 쓴다)
+  for (const b of kept) { const k = `${rowOf(b)},${colOf(b)}`; const prev = cellArea.get(k); if (!prev || b.area > prev.area) cellArea.set(k, b); }
+  // kept.length(크기가 비슷한 후보 개수)만 보면 안 된다 — 그리드로 묶었을 때 서로 다른 칸에 실제로 자리 잡은 개수(= 진짜 자신 있게 맞춘 웰 수)를 봐야 한다.
+  if (cellArea.size < Math.max(2, expected * minMatchFrac)) return null;
+
+  const spacingX = colCenters.length > 1 ? (colCenters[colCenters.length - 1] - colCenters[0]) / (colCenters.length - 1) : null;
+  const spacingY = rowCenters.length > 1 ? (rowCenters[rowCenters.length - 1] - rowCenters[0]) / (rowCenters.length - 1) : null;
+  const avgBlobSize = kept.reduce((a, b) => a + (b.bw + b.bh) / 2, 0) / kept.length;
+  const pitch = spacingX !== null && spacingY !== null ? Math.min(spacingX, spacingY) : spacingX ?? spacingY ?? avgBlobSize / marginRatio;
+  const r = Math.max(2, pitch * marginRatio);
+
+  const wells = [];
+  for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) {
+    const hit = cellArea.get(`${row},${col}`);
+    wells.push({ row, col, cx: hit ? hit.cx : colCenters[col], cy: hit ? hit.cy : rowCenters[row], r, matched: !!hit });
+  }
+  return { wells, rowCenters, colCenters, matchedCount: cellArea.size };
 }
 
 // ---------- 웰 그리드 ----------

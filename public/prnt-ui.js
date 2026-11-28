@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 // PRNT 플라크 세기 화면: 사진 올리기 → 플레이트 범위 지정 → 웰 자동 검출(+수정) → 앙상블 검출(워커) → 보정 → 결과표/PRNT50·80·90 → 보고서
-import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate } from './prnt-calc.js';
+import { fitWellGrid, refineWellCenter, toChannel, judgeCountability, prntInterpolate, detectColorBlobs, inferWellGrid } from './prnt-calc.js';
 import { buildModel } from './prnt-report.js';
 import { renderPages, buildHwpx } from './eds-report.js';
 import { VERSION, APP_INFO } from './version.js';
@@ -47,6 +47,7 @@ export function initPrnt({ $, saveBlob }) {
       msg.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB — 이 컴퓨터의 브라우저 안에서만 읽어요.`;
       $('prntBody').hidden = false;
       drawBase(); renderTable();
+      tryAutoDetectWells(); // 범위를 직접 그리지 않아도 바로 찾아본다 — 못 찾으면 기존 방식(드래그) 안내로 조용히 넘어간다
     };
     img.onerror = () => { msg.className = 'pberr'; msg.textContent = '이미지를 읽지 못했어요.'; };
     img.src = url;
@@ -136,25 +137,43 @@ export function initPrnt({ $, saveBlob }) {
   function recountAfterMove() { /* 수동으로 위치만 옮긴 경우 — 다시 "검출 실행"을 눌러야 그 위치로 다시 센다 */ renderTable(); }
 
   // ---------- 1) 웰 자동 검출 ----------
-  $('prntWellType').addEventListener('change', () => { S.wellType = +$('prntWellType').value; });
+  // 찾은 웰 목록을 확정(중심 미세 보정 + mm 환산 + 표시)하는 공통 마무리 — 범위-드래그 방식과 색 기반 자동 검출 둘 다 이걸 쓴다.
+  function finalizeWells(wells, note) {
+    const imgData = baseCtx.getImageData(0, 0, S.w, S.h).data;
+    const green = toChannel(imgData, S.w, S.h, 'green');
+    wells = wells.map((w) => refineWellCenter(green, S.w, S.h, w, { searchPx: Math.round(w.r * 0.12) }));
+    S.wells = wells; S.results.clear();
+    for (const w of wells) if (!S.meta.has(key(w.row, w.col))) S.meta.set(key(w.row, w.col), { dilution: null, isControl: false });
+    const avgDiamPx = (wells.reduce((a, w) => a + w.r, 0) / wells.length) * 2;
+    S.pxPerMm = avgDiamPx / STANDARD_WELL_DIAM_MM[S.wellType];
+    $('prntScaleNote').textContent = `웰 지름 ${avgDiamPx.toFixed(0)}px ≈ ${STANDARD_WELL_DIAM_MM[S.wellType]}mm(${S.wellType}웰 표준 규격) 기준 → 1mm ≈ ${S.pxPerMm.toFixed(1)}px로 자동 환산했어요.`;
+    const msg = $('prntMsg'); msg.className = 'note'; msg.textContent = note;
+    drawOverlay(); renderTable();
+  }
+  // 사진을 올리자마자 범위를 직접 그리지 않아도 되도록, 염색된 웰(채도 높은 원형 얼룩)을 바로 찾아본다.
+  // 자신 없으면(크기가 들쭉날쭉하거나 절반 넘게 못 찾으면) 조용히 포기하고 기존 방식(범위 드래그)으로 넘어간다 — 틀린 추측을 자신 있게 보여주는 것보다 낫다.
+  function tryAutoDetectWells() {
+    const imgData = baseCtx.getImageData(0, 0, S.w, S.h).data;
+    const blobs = detectColorBlobs(imgData, S.w, S.h);
+    const { rows, cols } = WELL_LAYOUT[S.wellType];
+    const normal = inferWellGrid(blobs, rows, cols), swapped = inferWellGrid(blobs, cols, rows);
+    let res = normal, swap = false;
+    if (swapped && (!normal || swapped.matchedCount > normal.matchedCount)) { res = swapped; swap = true; }
+    if (!res) { $('prntMsg').className = 'note'; $('prntMsg').textContent += ' 플레이트 범위를 자동으로 찾지 못했어요 — 사진 위를 드래그해서 범위를 표시한 뒤 "웰 자동 검출"을 눌러 주세요.'; return false; }
+    S.swapRC = swap; $('prntSwapRC').checked = swap;
+    const missing = res.wells.filter((w) => !w.matched).length;
+    finalizeWells(res.wells, `사진에서 웰 ${res.matchedCount}/${rows * cols}개를 자동으로 찾았어요${missing ? ` (${missing}개는 추정 위치 — 원 가운데 점을 드래그해 옮겨 주세요)` : ''}. 다르면 드래그로 옮기고 "검출 실행"을 눌러 주세요.`);
+    return true;
+  }
+  $('prntWellType').addEventListener('change', () => { S.wellType = +$('prntWellType').value; if (S.img) tryAutoDetectWells(); });
   $('prntSwapRC').addEventListener('change', () => { S.swapRC = $('prntSwapRC').checked; });
   $('prntDetectWells').addEventListener('click', () => {
     const msg = $('prntMsg');
     if (!S.img) { msg.className = 'pberr'; msg.textContent = '먼저 사진을 올려 주세요.'; return; }
     if (!S.bbox || S.bbox.x1 - S.bbox.x0 < 20 || S.bbox.y1 - S.bbox.y0 < 20) { msg.className = 'pberr'; msg.textContent = '캔버스 위에서 드래그해 플레이트 범위를 먼저 표시해 주세요.'; return; }
     let { rows, cols } = WELL_LAYOUT[S.wellType]; if (S.swapRC) [rows, cols] = [cols, rows];
-    let wells = fitWellGrid(S.bbox, rows, cols, 0.42);
-    const imgData = baseCtx.getImageData(0, 0, S.w, S.h).data;
-    const green = toChannel(imgData, S.w, S.h, 'green');
-    wells = wells.map((w) => refineWellCenter(green, S.w, S.h, w, { searchPx: Math.round(w.r * 0.12) }));
-    S.wells = wells; S.results.clear();
-    for (const w of wells) if (!S.meta.has(key(w.row, w.col))) S.meta.set(key(w.row, w.col), { dilution: null, isControl: false });
-    // mm 환산: 자를 따로 대지 않고, 방금 찾은 웰들의 화면 지름(px)과 이 플레이트 규격의 표준 웰 지름(mm)으로 1mm당 px을 구한다.
-    const avgDiamPx = (wells.reduce((a, w) => a + w.r, 0) / wells.length) * 2;
-    S.pxPerMm = avgDiamPx / STANDARD_WELL_DIAM_MM[S.wellType];
-    $('prntScaleNote').textContent = `웰 지름 ${avgDiamPx.toFixed(0)}px ≈ ${STANDARD_WELL_DIAM_MM[S.wellType]}mm(${S.wellType}웰 표준 규격) 기준 → 1mm ≈ ${S.pxPerMm.toFixed(1)}px로 자동 환산했어요.`;
-    msg.className = 'note'; msg.textContent = `웰 ${wells.length}개를 찾았어요. 중심이 어긋나면 원 가운데 점을 드래그해 옮기고 "검출 실행"을 눌러 주세요.`;
-    drawOverlay(); renderTable();
+    const wells = fitWellGrid(S.bbox, rows, cols, 0.42);
+    finalizeWells(wells, `웰 ${wells.length}개를 찾았어요. 중심이 어긋나면 원 가운데 점을 드래그해 옮기고 "검출 실행"을 눌러 주세요.`);
   });
 
   // ---------- 2) 앙상블 검출 (워커) ----------

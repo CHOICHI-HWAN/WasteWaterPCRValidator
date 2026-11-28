@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 치치박사&박박사
 import assert from 'node:assert/strict';
-import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter, discStats, detectBlobs, ensembleDetect, splitMergedBlobs, judgeCountability, pxPerMm, prntInterpolate } from '../public/prnt-calc.js';
+import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter, discStats, detectBlobs, ensembleDetect, splitMergedBlobs, judgeCountability, pxPerMm, prntInterpolate, detectColorBlobs, inferWellGrid } from '../public/prnt-calc.js';
 
 // ---------- 채널 추출 ----------
 {
@@ -132,6 +132,37 @@ import { toChannel, boxBlur, flattenIllumination, fitWellGrid, refineWellCenter,
   // PRNT50: 60→10 구간, frac=(60-50)/(60-10)=0.2, logD=2+0.2=2.2 → 10^2.2
   assert.ok(Math.abs(results[50] - Math.pow(10, 2.2)) < 1e-6);
   console.log('prntInterpolate tests passed');
+}
+
+// ---------- 자동 웰 그리드 검출: 채도 기반 블롭 + 크기로 걸러 그리드에 맞추기 ----------
+{
+  // 합성 사진: 흰 배경(채도 0) 위에 2행×3열 보라색 원(채도 높음) + 한쪽 구석에 크기가 전혀 다른(훨씬 큰) 노란 사각형(스티커 메모 흉내)
+  const w = 300, h = 200, px = new Uint8ClampedArray(w * h * 4).fill(255); // 흰 배경, 알파는 아래서 다시 채움
+  for (let i = 0; i < w * h; i++) px[i * 4 + 3] = 255;
+  const setPx = (x, y, r, g, b) => { const i = (y * w + x) * 4; px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255; };
+  const fillCircle = (cx, cy, r, c) => { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) setPx(cx + x, cy + y, ...c); };
+  const rows = 2, cols = 3, cw = w / cols, ch = h / rows, r = Math.min(cw, ch) * 0.35;
+  for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) fillCircle(Math.round(cw * (col + 0.5)), Math.round(ch * (row + 0.5)), Math.round(r), [80, 40, 150]);
+  for (let y = 2; y < 18; y++) for (let x = 270; x < 296; x++) setPx(x, y, 210, 200, 40); // 구석의 큰 노란 사각형(엉뚱한 큰 덩어리)
+
+  const blobs = detectColorBlobs(px, w, h, { gridMax: 200, satThr: 0.4, erode: 0, minAreaFrac: 0.0005 });
+  assert.ok(blobs.length >= rows * cols, `blobs too few: ${blobs.length}`);
+  const res = inferWellGrid(blobs, rows, cols);
+  assert.ok(res, 'inferWellGrid returned null for a clean synthetic grid');
+  assert.equal(res.matchedCount, rows * cols);
+  assert.equal(res.wells.length, rows * cols);
+  // 각 웰이 의도한 위치 근처에 있는지(사각형 스티커가 섞여 들어가지 않았는지)
+  for (const well of res.wells) {
+    const ecx = cw * (well.col + 0.5), ecy = ch * (well.row + 0.5);
+    assert.ok(Math.abs(well.cx - ecx) < cw * 0.25, `col off: ${well.row},${well.col}`);
+    assert.ok(Math.abs(well.cy - ecy) < ch * 0.25, `row off: ${well.row},${well.col}`);
+  }
+  console.log('detectColorBlobs/inferWellGrid (clean grid) tests passed');
+
+  // 자신 없는 경우: 블롭이 거의 없으면 null을 돌려줘야 한다(엉뚱한 추측 대신 손으로 하라고 넘기는 게 맞다)
+  const sparse = detectColorBlobs(px, w, h, { gridMax: 200, satThr: 0.4, erode: 0, minAreaFrac: 0.0005 }).slice(0, 1);
+  assert.equal(inferWellGrid(sparse, rows, cols), null);
+  console.log('inferWellGrid (low-confidence → null) tests passed');
 }
 
 console.log('prnt tests passed');
