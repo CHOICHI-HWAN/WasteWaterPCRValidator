@@ -605,7 +605,11 @@ async function saveBlob(blob, name) {
       if (!path) return;
       await T.fs.writeFile(path, new Uint8Array(await blob.arrayBuffer()));
       return;
-    } catch (e) { console.error(e); alert('저장하지 못했어요: ' + (e?.message ?? e)); return; }
+    } catch (e) {
+      // 안드로이드 등 저장 창이 없는 환경: 공유 시트로 내보낸다
+      try { const f = new File([blob], name, { type: blob.type }); if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } } catch (er) { if (er?.name === 'AbortError') return; }
+      console.error(e); alert('저장하지 못했어요: ' + (e?.message ?? e)); return;
+    }
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; a.click();

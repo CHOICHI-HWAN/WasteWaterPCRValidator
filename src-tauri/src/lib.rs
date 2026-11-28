@@ -4,6 +4,7 @@
 // 화면은 ../public 의 웹 앱(HTML/JS)을 그대로 쓰고, 서버나 브라우저 없이 이 창 안의 WebView 에서 열린다.
 // 파일 저장은 Windows 의 "다른 이름으로 저장" 창(dialog)과 fs 플러그인으로 처리한다.
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
