@@ -62,6 +62,63 @@ export function initPrnt({ $, saveBlob }) {
     catch (e) { const m = $('prntMsg'); m.className = 'pberr'; m.textContent = e.message; }
   });
 
+  // ---------- 카메라로 바로 찍기 ----------
+  // 여러 프레임을 찍어 픽셀마다 중앙값을 합성한다 — 손이 흔들려 생기는 반짝임(반사광)이나
+  // 센서 잡음은 매 프레임 위치가 달라서 중앙값에서 사라지고, 진짜 염색 패턴만 남는다
+  // (CLAUDE.md 원래 계획에 있던 아이디어 — 오늘 찾은 반사광 글레어 문제를 직접 줄여 준다).
+  const CAM_FRAMES = 8, CAM_INTERVAL_MS = 90, CAM_MAX = 1600;
+  let camStream = null;
+  async function camStop() {
+    if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+    $('prntCamVideo').srcObject = null;
+  }
+  $('prntCamOpen').addEventListener('click', async () => {
+    const msg = $('prntMsg');
+    if (!navigator.mediaDevices?.getUserMedia) { msg.className = 'pberr'; msg.textContent = '이 브라우저(또는 이 연결)에서는 카메라를 쓸 수 없어요. HTTPS 주소에서 열어 주세요.'; return; }
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+      $('prntCamVideo').srcObject = camStream;
+      $('prntCamMsg').className = 'note'; $('prntCamMsg').textContent = '화면 가운데 점선 사각형 안에 플레이트 전체가 들어오게 맞추고 "촬영"을 눌러 주세요. 가능하면 손을 가만히 두세요 — 여러 장을 합쳐서 반사광·잡음을 줄여요.';
+      $('prntCam').showModal();
+    } catch (e) {
+      msg.className = 'pberr';
+      msg.textContent = e?.name === 'NotAllowedError' ? '카메라 권한이 거부됐어요. 브라우저 설정에서 허용해 주세요.' : '카메라를 열지 못했어요: ' + (e?.message || e);
+    }
+  });
+  $('prntCamClose').addEventListener('click', () => { camStop(); $('prntCam').close(); });
+  $('prntCam').addEventListener('close', camStop);
+  $('prntCamShot').addEventListener('click', async () => {
+    const video = $('prntCamVideo'), shotBtn = $('prntCamShot'), camMsg = $('prntCamMsg');
+    if (!video.videoWidth) return;
+    shotBtn.disabled = true; camMsg.className = 'note'; camMsg.textContent = `촬영 중… (${CAM_FRAMES}장을 합쳐요)`;
+    const scale = Math.min(1, CAM_MAX / Math.max(video.videoWidth, video.videoHeight));
+    const cw = Math.round(video.videoWidth * scale), ch = Math.round(video.videoHeight * scale);
+    const grab = document.createElement('canvas'); grab.width = cw; grab.height = ch;
+    const gctx = grab.getContext('2d', { willReadFrequently: true });
+    const frames = [];
+    for (let i = 0; i < CAM_FRAMES; i++) {
+      gctx.drawImage(video, 0, 0, cw, ch);
+      frames.push(gctx.getImageData(0, 0, cw, ch).data);
+      if (i < CAM_FRAMES - 1) await new Promise((r) => setTimeout(r, CAM_INTERVAL_MS));
+    }
+    const n = frames.length, mid = n >> 1, out = new Uint8ClampedArray(frames[0].length);
+    const col = new Uint8ClampedArray(n);
+    for (let i = 0; i < out.length; i++) {
+      if (i % 4 === 3) { out[i] = 255; continue; } // 알파
+      for (let f = 0; f < n; f++) col[f] = frames[f][i];
+      col.sort();
+      out[i] = n % 2 ? col[mid] : ((col[mid - 1] + col[mid]) >> 1);
+    }
+    const outCanvas = document.createElement('canvas'); outCanvas.width = cw; outCanvas.height = ch;
+    outCanvas.getContext('2d').putImageData(new ImageData(out, cw, ch), 0, 0);
+    outCanvas.toBlob((blob) => {
+      shotBtn.disabled = false;
+      if (!blob) { camMsg.className = 'pberr'; camMsg.textContent = '사진으로 저장하지 못했어요. 다시 시도해 주세요.'; return; }
+      camStop(); $('prntCam').close();
+      loadImage(new File([blob], `camera_${Date.now()}.png`, { type: 'image/png' }));
+    }, 'image/png');
+  });
+
   // ---------- 캔버스 그리기 ----------
   function drawBase() {
     ctx.clearRect(0, 0, S.w, S.h);

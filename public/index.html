@@ -537,7 +537,10 @@
   <section class="card">
     <div class="chead"><h2>🦠 PRNT 플라크 세기 <span class="tag opt">베타 · v1</span></h2><span class="hint">크리스탈 바이올렛으로 염색한 웰 플레이트 사진을 올리면 웰을 찾아 플라크(흰 반점)를 세요. <b>정확도는 실제 사람이 센 값과 비교해야만 확인돼요</b> — 지금은 검증 전이에요.</span></div>
     <label class="drop" id="prntDrop" style="cursor:pointer"><span style="font-size:28px">📷</span><span><b>플레이트 사진을 끌어다 놓거나 눌러서 선택</b><br><small class="note" style="margin:0">사진은 이 컴퓨터의 브라우저 안에서만 읽어요. 서버로 올라가지 않아요.</small></span><input id="prntFile" type="file" accept="image/*" hidden></label>
-    <div class="row" style="margin:10px 0 0"><button id="prntSample" type="button">🧪 샘플 불러오기 (가상 데이터)</button></div>
+    <div class="row" style="margin:10px 0 0">
+      <button id="prntSample" type="button">🧪 샘플 불러오기 (가상 데이터)</button>
+      <button id="prntCamOpen" type="button">📸 카메라로 바로 찍기</button>
+    </div>
     <div id="prntMsg" class="note"></div>
   </section>
   <div id="prntBody" hidden>
@@ -649,6 +652,21 @@
     </div>
     <p class="note noprint" id="pvNote"></p>
     <div id="pvBody"></div>
+  </dialog>
+
+  <dialog id="prntCam" class="wide">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <h2 style="margin:0">📸 카메라로 플레이트 찍기</h2>
+      <div class="row" style="margin:0;flex:0 0 auto;gap:8px">
+        <button id="prntCamShot" class="primary" type="button">📸 촬영</button>
+        <button id="prntCamClose" type="button">닫기</button>
+      </div>
+    </div>
+    <p class="note" id="prntCamMsg">화면 가운데 점선 사각형 안에 플레이트 전체가 들어오게 맞추고 "촬영"을 눌러 주세요. 가능하면 손을 가만히 두세요 — 여러 장을 합쳐서 반사광·잡음을 줄여요.</p>
+    <div class="prntwrap" style="position:relative;max-height:70vh;overflow:hidden;display:flex;justify-content:center;background:#000">
+      <video id="prntCamVideo" autoplay playsinline muted style="max-width:100%;max-height:70vh"></video>
+      <div style="position:absolute;inset:8%;border:2px dashed #fff;border-radius:12px;pointer-events:none;box-shadow:0 0 0 2000px rgba(0,0,0,.25)"></div>
+    </div>
   </dialog>
 
   <footer class="foot">
